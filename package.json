@@ -1,6 +1,6 @@
 {
   "name": "marketing-tarot",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "Marketing Tarot reading widget for Merlinite Marketing",
   "type": "module",
@@ -9,7 +9,7 @@
     "build:deck": "node scripts/build-deck.mjs",
     "build:embed": "node scripts/build-embed.mjs",
     "dev": "node scripts/build-deck.mjs && node scripts/dev-server.mjs",
-    "test": "node scripts/build-deck.mjs && node scripts/test-send-reading.mjs",
+    "test": "node scripts/build-deck.mjs && node --check site/app.js && node --check site/pdf.js && echo Static checks passed. Run npm run dev and open http://localhost:8787/test/ for the browser suite.",
     "cards": "node scripts/download-cards.mjs && node scripts/resize-cards.mjs"
   },
   "engines": {

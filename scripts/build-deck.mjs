@@ -1,15 +1,12 @@
-// Turns data/deck.json (Kelly's file, the source of truth) into:
-//   site/deck.js          a plain script the widget loads without fetch()
-//   netlify/lib/deck.mjs  an ES module the send-reading function imports
-// Run: npm run build:deck
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+// Turns data/deck.json (Kelly's file, the source of truth) into site/deck.js, a plain
+// script the widget loads without fetch(). Validates the file first. Run: npm run build:deck
+import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const src = join(root, "data", "deck.json");
-const outSite = join(root, "site", "deck.js");
-const outServer = join(root, "netlify", "lib", "deck.mjs");
+const out = join(root, "site", "deck.js");
 
 const deck = JSON.parse(readFileSync(src, "utf8"));
 
@@ -29,16 +26,12 @@ deck.spreads.forEach((s, i) => {
     errors.push(`spread ${i} (${s.question}) needs ${deck.cards_per_reading || 4} positions`);
   }
 });
+if (!deck.footer) errors.push("missing footer text");
 if (errors.length) {
   console.error("deck.json problems:\n - " + errors.join("\n - "));
   process.exit(1);
 }
 
 const banner = "// Generated from data/deck.json by scripts/build-deck.mjs. Edit the JSON, not this file.\n";
-const body = JSON.stringify(deck, null, 2);
-
-mkdirSync(dirname(outSite), { recursive: true });
-mkdirSync(dirname(outServer), { recursive: true });
-writeFileSync(outSite, banner + "window.MARKETING_TAROT_DECK = " + body + ";\n");
-writeFileSync(outServer, banner + "export default " + body + ";\n");
-console.log(`wrote site/deck.js and netlify/lib/deck.mjs (${deck.cards.length} cards, ${deck.spreads.length} spreads)`);
+writeFileSync(out, banner + "window.MARKETING_TAROT_DECK = " + JSON.stringify(deck, null, 2) + ";\n");
+console.log(`wrote site/deck.js (${deck.cards.length} cards, ${deck.spreads.length} spreads)`);

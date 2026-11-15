@@ -1,14 +1,13 @@
 /* Marketing Tarot widget
    Reads window.MARKETING_TAROT_DECK (from deck.js) and window.MARKETING_TAROT_CONFIG,
-   renders into #marketing-tarot, and handles shuffle, reveal, and the email box. */
+   renders into #marketing-tarot, and handles shuffle, reveal, and the PDF download
+   (window.MarketingTarotPdf from pdf.js). */
 (function () {
   "use strict";
 
   var DEFAULTS = {
     rootSelector: "#marketing-tarot",
     servicesUrl: "#",
-    privacyUrl: "#",
-    emailEndpoint: "",
     cardsBaseUrl: "cards/",
     imageExt: ".jpg",
     deckLabel: "the classic 1909 tarot",
@@ -20,9 +19,10 @@
     shufflingButton: "Shuffling…",
     readingHint: "Each spot asks its own question. The card that landed there is the answer.",
     readyAnnouncement: "Your reading is ready: four cards for “{question}”.",
-    emailError: "Hmm, that didn't send. Give it a minute and try again.",
-    emailInvalid: "That email doesn't look right. Double-check it?",
-    sendingButton: "Sending…",
+    pdfButton: "Download as PDF",
+    pdfPreparing: "Preparing PDF…",
+    pdfError: "Couldn't build the PDF. Try printing this page instead.",
+    pdfFilename: "marketing-tarot-reading.pdf",
     shuffleMs: 900,
     revealStaggerMs: 320,
     flipMs: 700,
@@ -42,7 +42,7 @@
 
   var CARDS_PER_READING = deck.cards_per_reading || 4;
   var reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  var state = { spread: 0, cards: [], busy: false, emailRequest: 0 };
+  var state = { spread: 0, cards: [], busy: false, pdfBusy: false };
 
   /* ---------- helpers ---------- */
 
@@ -104,8 +104,8 @@
     return true;
   }
 
-  // Reading state lives in the URL hash (#q=2&c=5,17,40,61) so an emailed
-  // "view online" link, or a refresh, brings the same reading back.
+  // Reading state lives in the URL hash (#q=2&c=5,17,40,61) so a refresh, or a shared
+  // link, brings the same reading back.
   function readHash() {
     var h = window.location.hash.replace(/^#/, "");
     if (!h) return null;
@@ -149,27 +149,6 @@
       return '<option value="' + i + '">' + esc(s.question) + "</option>";
     }).join("");
 
-    var emailBox = "";
-    if (config.emailEndpoint && deck.email_box) {
-      var eb = deck.email_box;
-      emailBox =
-        '<section class="mt-email" hidden>' +
-          '<form class="mt-email__form" novalidate>' +
-            "<h3>" + esc(eb.heading) + "</h3>" +
-            '<p class="mt-email__text">' + esc(eb.text) + "</p>" +
-            '<div class="mt-email__row">' +
-              '<label for="mt-email-input" class="mt-visually-hidden">Email address</label>' +
-              '<input class="mt-input" type="email" id="mt-email-input" name="email" autocomplete="email" inputmode="email" placeholder="you@example.com" required>' +
-              '<button type="submit" class="mt-button">' + esc(eb.button) + "</button>" +
-            "</div>" +
-            '<input class="mt-hp" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">' +
-            '<label class="mt-check"><input type="checkbox" name="newsletter"' + (eb.newsletter_checkbox_default ? " checked" : "") + "> " + esc(eb.checkbox) + "</label>" +
-            '<p class="mt-email__privacy"><a href="' + esc(config.privacyUrl) + '" target="_blank" rel="noopener">Privacy policy</a></p>' +
-            '<p class="mt-email__status" role="status" aria-live="polite"></p>' +
-          "</form>" +
-        "</section>";
-    }
-
     root.innerHTML =
       '<div class="mt-widget">' +
         '<header class="mt-header">' +
@@ -189,9 +168,12 @@
           '<p class="mt-reading__hint">' + esc(config.readingHint) + "</p>" +
           '<ol class="mt-cards"></ol>' +
           '<p class="mt-reading__footer">' + footerHtml() + "</p>" +
-          '<div class="mt-reading__actions"><button type="button" class="mt-button mt-button--ghost mt-reading__again">' + esc(config.pullAgainButton) + "</button></div>" +
+          '<div class="mt-reading__actions">' +
+            '<button type="button" class="mt-button mt-reading__pdf">' + esc(config.pdfButton) + "</button>" +
+            '<button type="button" class="mt-button mt-button--ghost mt-reading__again">' + esc(config.pullAgainButton) + "</button>" +
+          "</div>" +
+          '<p class="mt-reading__pdf-status" role="status" aria-live="polite"></p>' +
         "</section>" +
-        emailBox +
       "</div>";
   }
 
@@ -236,6 +218,7 @@
 
     heading.textContent = spread.question;
     announce.textContent = "";
+    resetPdfStatus();
     list.innerHTML = state.cards.map(function (id, i) {
       return cardHtml(deck.cards[id], spread.positions[i], i);
     }).join("");
@@ -248,11 +231,6 @@
     });
 
     section.hidden = false;
-    var emailSection = root.querySelector(".mt-email");
-    if (emailSection) {
-      emailSection.hidden = false;
-      resetEmailForm();
-    }
 
     var cards = list.querySelectorAll(".mt-card");
     var reveal = function () {
@@ -302,76 +280,77 @@
     renderReading(true);
   }
 
-  /* ---------- email box ---------- */
+  /* ---------- PDF download ---------- */
 
-  function resetEmailForm() {
-    var form = root.querySelector(".mt-email__form");
-    if (!form) return;
-    state.emailRequest++; // any reply still in flight belongs to the previous reading; ignore it
-    var status = form.querySelector(".mt-email__status");
-    status.textContent = "";
-    status.className = "mt-email__status";
-    var btn = form.querySelector('button[type="submit"]');
-    btn.disabled = false;
-    btn.textContent = deck.email_box.button;
-    form.querySelector("#mt-email-input").removeAttribute("aria-invalid");
-    Array.prototype.forEach.call(form.elements, function (el) { el.disabled = false; });
-  }
-
-  function looksLikeEmail(s) {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s) && s.length <= 254;
-  }
-
-  function sendReading(form) {
-    var input = form.querySelector("#mt-email-input");
-    var status = form.querySelector(".mt-email__status");
-    var btn = form.querySelector('button[type="submit"]');
-    var email = input.value.trim();
-
-    status.className = "mt-email__status";
-    if (!looksLikeEmail(email)) {
-      input.setAttribute("aria-invalid", "true");
-      status.textContent = config.emailInvalid;
-      status.classList.add("is-error");
-      input.focus();
-      return;
-    }
-    input.removeAttribute("aria-invalid");
-
-    var payload = {
-      email: email,
-      newsletter: !!form.querySelector('input[name="newsletter"]').checked,
-      spread: state.spread,
-      cards: state.cards.slice(),
-      website: form.querySelector('input[name="website"]').value || "",
-      page: window.location.href.split("#")[0]
+  // The current reading in the shape pdf.js expects.
+  function currentReading() {
+    var spread = deck.spreads[state.spread];
+    return {
+      title: config.title,
+      question: spread.question,
+      hint: config.readingHint,
+      deckLabel: config.deckLabel,
+      footer: deck.footer || "",
+      servicesUrl: config.servicesUrl && config.servicesUrl !== "#" ? config.servicesUrl : "",
+      cards: state.cards.map(function (id, i) {
+        var card = deck.cards[id];
+        return {
+          position: spread.positions[i],
+          name: card.name,
+          classic: card.classic_meaning,
+          marketing: card.marketing_meaning,
+          imageUrl: imageUrl(card)
+        };
+      })
     };
+  }
 
-    var requestId = state.emailRequest;
-    btn.disabled = true;
-    btn.textContent = config.sendingButton;
+  function buildPdf() {
+    if (!state.cards.length) return Promise.reject(new Error("No reading yet"));
+    if (!window.MarketingTarotPdf) return Promise.reject(new Error("pdf.js did not load"));
+    return window.MarketingTarotPdf.build(currentReading());
+  }
+
+  function resetPdfStatus() {
+    var btn = root.querySelector(".mt-reading__pdf");
+    var status = root.querySelector(".mt-reading__pdf-status");
+    if (!btn) return;
+    state.pdfBusy = false;
+    btn.disabled = false;
+    btn.textContent = config.pdfButton;
     status.textContent = "";
+    status.className = "mt-reading__pdf-status";
+  }
 
-    fetch(config.emailEndpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    }).then(function (res) {
-      return res.json().catch(function () { return {}; }).then(function (body) {
-        if (!res.ok || !body.ok) throw new Error(body.error || ("HTTP " + res.status));
-        if (requestId !== state.emailRequest) return; // a new reading was pulled meanwhile
-        status.textContent = deck.email_box.confirmation;
-        status.classList.add("is-success");
-        Array.prototype.forEach.call(form.elements, function (el) { el.disabled = true; });
-        btn.textContent = deck.email_box.button;
-      });
+  function downloadPdf() {
+    if (state.pdfBusy || !state.cards.length) return;
+    var btn = root.querySelector(".mt-reading__pdf");
+    var status = root.querySelector(".mt-reading__pdf-status");
+    state.pdfBusy = true;
+    btn.disabled = true;
+    btn.textContent = config.pdfPreparing;
+    status.textContent = "";
+    status.className = "mt-reading__pdf-status";
+
+    buildPdf().then(function (blob) {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = config.pdfFilename;
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
     }).catch(function () {
-      if (requestId !== state.emailRequest) return;
-      status.textContent = config.emailError;
+      status.textContent = config.pdfError;
       status.classList.add("is-error");
+    }).then(function () {
+      state.pdfBusy = false;
       btn.disabled = false;
-      btn.textContent = deck.email_box.button;
-    }).then(postHeight);
+      btn.textContent = config.pdfButton;
+      postHeight();
+    });
   }
 
   /* ---------- iframe messaging ---------- */
@@ -399,22 +378,16 @@
     e.preventDefault();
     pull();
   });
-
-  var again = root.querySelector(".mt-reading__again");
-  if (again) again.addEventListener("click", pull);
-
-  var emailForm = root.querySelector(".mt-email__form");
-  if (emailForm) {
-    emailForm.addEventListener("submit", function (e) {
-      e.preventDefault();
-      sendReading(emailForm);
-    });
-  }
+  root.querySelector(".mt-reading__again").addEventListener("click", pull);
+  root.querySelector(".mt-reading__pdf").addEventListener("click", downloadPdf);
 
   if (window.ResizeObserver && window.parent !== window) {
     new ResizeObserver(postHeight).observe(root);
   }
   window.addEventListener("load", postHeight);
+
+  // Small API for tests and for anyone embedding the widget programmatically.
+  root.marketingTarot = { buildPdf: buildPdf, reading: currentReading };
 
   var fromHash = readHash();
   if (fromHash) {

@@ -1,20 +1,14 @@
-// Local preview: serves site/ and mounts the send-reading function at /api/send-reading.
-// Runs the function in DRY_RUN mode unless you set DRY_RUN=0 (and the Resend env vars).
-// Usage: node scripts/dev-server.mjs   (then open http://localhost:8787)
+// Local preview: serves site/ at http://localhost:8787 plus the browser test suite at /test/.
+// Usage: node scripts/dev-server.mjs
 import { createServer } from "node:http";
-import { readFile, stat } from "node:fs/promises";
+import { readFile, stat, writeFile, mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join, normalize, extname, sep } from "node:path";
-
-process.env.DRY_RUN ??= "1";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const siteDir = join(root, "site");
 const testDir = join(root, "test");
 const port = Number(process.env.PORT || 8787);
-
-const { default: sendReading, config: fnConfig } = await import("../netlify/functions/send-reading.mjs");
-const fnPath = (fnConfig && fnConfig.path) || "/api/send-reading";
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -27,6 +21,7 @@ const MIME = {
   ".png": "image/png",
   ".webp": "image/webp",
   ".svg": "image/svg+xml",
+  ".pdf": "application/pdf",
   ".ico": "image/x-icon",
   ".txt": "text/plain; charset=utf-8"
 };
@@ -40,21 +35,6 @@ function safePath(dir, urlPath) {
 async function handle(req, res) {
   const url = new URL(req.url, `http://localhost:${port}`);
 
-  if (url.pathname === fnPath) {
-    const chunks = [];
-    for await (const c of req) chunks.push(c);
-    const request = new Request(url, {
-      method: req.method,
-      headers: req.headers,
-      body: chunks.length ? Buffer.concat(chunks) : undefined
-    });
-    const response = await sendReading(request);
-    res.writeHead(response.status, Object.fromEntries(response.headers));
-    res.end(Buffer.from(await response.arrayBuffer()));
-    console.log(`${req.method} ${url.pathname} -> ${response.status}`);
-    return;
-  }
-
   // /test/embed.html: the real Squarespace snippet, pointed at this server, inside a fake host page.
   if (url.pathname === "/test/embed.html") {
     const snippet = (await readFile(join(root, "squarespace", "iframe-embed.html"), "utf8"))
@@ -62,6 +42,33 @@ async function handle(req, res) {
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" });
     res.end(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Embed test</title></head>` +
       `<body style="margin:0;background:#dde;font-family:sans-serif"><p style="padding:12px;margin:0">Fake Squarespace page. Below is squarespace/iframe-embed.html with its src pointed at this dev server.</p>${snippet}</body></html>`);
+    return;
+  }
+
+  // POST /test/save-pdf: the test suite drops its last generated PDF here so it can be
+  // opened or checked with a PDF tool. Written to dist/last-reading.pdf (git-ignored).
+  if (url.pathname === "/test/save-pdf" && req.method === "POST") {
+    const chunks = [];
+    for await (const c of req) chunks.push(c);
+    await mkdir(join(root, "dist"), { recursive: true });
+    const dest = join(root, "dist", "last-reading.pdf");
+    await writeFile(dest, Buffer.concat(chunks));
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ ok: true, path: dest }));
+    console.log(`saved ${dest} (${Buffer.concat(chunks).length} bytes)`);
+    return;
+  }
+
+  // GET /test/last-reading.pdf: the file saved above, for opening in the browser.
+  if (url.pathname === "/test/last-reading.pdf") {
+    try {
+      const data = await readFile(join(root, "dist", "last-reading.pdf"));
+      res.writeHead(200, { "Content-Type": "application/pdf", "Cache-Control": "no-cache" });
+      res.end(data);
+    } catch {
+      res.writeHead(404, { "Content-Type": "text/plain" });
+      res.end("No PDF saved yet. Run the test suite at /test/ first.");
+    }
     return;
   }
 
@@ -95,6 +102,6 @@ createServer((req, res) => {
     res.end(err instanceof URIError ? "Bad request" : "Server error");
   });
 }).listen(port, "127.0.0.1", () => {
-  console.log(`Marketing Tarot dev server: http://localhost:${port}  (DRY_RUN=${process.env.DRY_RUN})`);
+  console.log(`Marketing Tarot dev server: http://localhost:${port}`);
   console.log(`Widget test suite:          http://localhost:${port}/test/`);
 });

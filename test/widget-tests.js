@@ -1,7 +1,7 @@
-/* Browser test suite for site/app.js. Loaded by test/index.html via the dev server.
-   Each test gets a fresh widget instance: we set window.MARKETING_TAROT_CONFIG, point
-   rootSelector at a new container, and re-run the app.js source. Results go to the page
-   and to window.__results so a script can read them.
+/* Browser test suite for site/app.js and site/pdf.js. Loaded by test/index.html via the
+   dev server. Each test gets a fresh widget instance: we set window.MARKETING_TAROT_CONFIG,
+   point rootSelector at a new container, and re-run the app.js source. Results go to the
+   page and to window.__results so a script can read them.
 
    Note: Chrome throttles history.replaceState to roughly 100 calls per 10 seconds and then
    silently drops calls, so instances run with updateHash:false unless a test is about the
@@ -65,8 +65,6 @@
     window.MARKETING_TAROT_CONFIG = Object.assign({
       rootSelector: "#" + id,
       servicesUrl: "https://example.test/services",
-      privacyUrl: "https://example.test/privacy",
-      emailEndpoint: "",
       cardsBaseUrl: "/cards/",
       shuffleMs: 0, revealStaggerMs: 0, flipMs: 0, scrollOnPull: false, updateHash: false
     }, cfg);
@@ -93,6 +91,27 @@
   };
   const slug = (n) => n.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 
+  // Decodes PDF bytes as latin1 so literal strings and dictionary keys can be searched.
+  const latin1 = (bytes) => { let s = ""; for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]); return s; };
+  const count = (s, needle) => s.split(needle).length - 1;
+
+  // Walks the xref table and checks every offset lands on "N 0 obj".
+  function checkXref(bytes, text) {
+    const m = /startxref\s+(\d+)\s+%%EOF\s*$/.exec(text);
+    assert(m, "startxref present");
+    const xrefAt = Number(m[1]);
+    assert(text.slice(xrefAt, xrefAt + 4) === "xref", "startxref points at the xref table");
+    const header = /^xref\s+0 (\d+)\s/.exec(text.slice(xrefAt));
+    const n = Number(header[1]);
+    const entriesStart = xrefAt + header[0].length;
+    for (let i = 1; i < n; i++) {
+      const entry = text.slice(entriesStart + i * 20, entriesStart + i * 20 + 20);
+      const off = Number(entry.slice(0, 10));
+      assert(text.slice(off).startsWith(`${i} 0 obj`), `xref entry ${i} points at object ${i}`);
+    }
+    return n - 1;
+  }
+
   /* ---------- tests ---------- */
 
   await test("deck data has the expected shape", () => {
@@ -100,19 +119,19 @@
     eq(deck.spreads.length, 7, "spread count");
     deck.cards.forEach((c, i) => { eq(c.id, i, `card ${i} id`); assert(c.name && c.classic_meaning && c.marketing_meaning, `card ${i} fields`); });
     deck.spreads.forEach((s, i) => { assert(s.question, `spread ${i} question`); eq(s.positions.length, 4, `spread ${i} positions`); });
-    assert(deck.footer && deck.email_box && deck.email_box.heading, "footer and email_box copy");
+    assert(deck.footer, "footer copy");
     const slugs = new Set(deck.cards.map((c) => slug(c.name)));
     eq(slugs.size, 78, "card slugs are unique");
   });
 
-  await test("renders the 7 questions, first selected, reading hidden, no email box", () => {
+  await test("renders the 7 questions, first selected, reading hidden", () => {
     const w = boot();
     const opts = w.qa("#mt-question option");
     eq(opts.length, 7, "option count");
     opts.forEach((o, i) => eq(o.textContent, deck.spreads[i].question, `option ${i}`));
     eq(w.select().value, "0", "default selection");
     assert(w.reading().hidden, "reading hidden before a pull");
-    eq(w.q(".mt-email"), null, "email box absent when endpoint is empty");
+    eq(w.q(".mt-email"), null, "no email box anywhere");
     eq(w.pullBtn().textContent, "Shuffle & pull 4 cards", "initial button label");
   });
 
@@ -140,6 +159,7 @@
       assert(!card.classList.contains("is-facedown"), `card ${i} flipped face up`);
     });
     eq(w.pullBtn().textContent, "Shuffle & pull again", "button label after a pull");
+    eq(w.q(".mt-reading__pdf").textContent, "Download as PDF", "PDF button present");
     assert(!/rider/i.test(w.host.textContent), "no Rider-Waite wording anywhere");
     assert(w.q(".mt-announce").textContent.includes(spread.question), "screen-reader announcement names the question");
   });
@@ -253,69 +273,108 @@
     }
   });
 
-  await test("email box: shown with an endpoint, validates, posts the reading, handles failure and success", async () => {
-    const calls = [];
-    let respond = () => new Response(JSON.stringify({ ok: true }), { status: 200 });
-    const realFetch = window.fetch;
-    window.fetch = async (url, init) => { calls.push({ url, body: JSON.parse(init.body) }); return respond(); };
+  await test("PDF: text wrapping never exceeds the column width", () => {
+    const wrap = window.MarketingTarotPdf._wrap;
+    const canvas = document.createElement("canvas").getContext("2d");
+    const long = deck.cards.map((c) => c.marketing_meaning).join(" ");
+    for (const [size, bold, width] of [[11, false, 392], [10, true, 392], [15, false, 504], [11, false, 120]]) {
+      const lines = wrap(long, size, bold, width);
+      canvas.font = (bold ? "bold " : "") + size + "px Arial, Helvetica, sans-serif";
+      lines.forEach((line, i) => assert(canvas.measureText(line).width <= width, `line ${i} at ${size}px fits ${width}pt: "${line.slice(0, 40)}"`));
+      eq(lines.join(" "), long.split(/\s+/).join(" "), "no words lost or duplicated");
+    }
+    eq(window.MarketingTarotPdf._jpegInfo(new Uint8Array([0, 1, 2])), null, "non-JPEG rejected");
+  });
+
+  await test("PDF: builds a valid file with the question, four cards, their images and the Services link", async () => {
+    const w = boot({ servicesUrl: "https://example.test/services" }, "q=2&c=0,22,36,77");
+    await waitFor(() => !w.pullBtn().disabled, 3000, "restore");
+    const blob = await w.host.marketingTarot.buildPdf();
+    eq(blob.type, "application/pdf", "blob type");
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    const text = latin1(bytes);
+    assert(text.startsWith("%PDF-1.4\n"), "PDF header");
+    const objects = checkXref(bytes, text);
+    assert(objects >= 10, `object count ${objects}`);
+    eq(count(text, "/Subtype /Image"), 4, "four embedded images");
+    eq(count(text, "/Filter /DCTDecode"), 4, "images are JPEG streams");
+    assert(/\/Type \/Pages \/Count ([12]) /.test(text), "one or two pages");
+    for (const id of [0, 22, 36, 77]) assert(text.includes("(" + deck.cards[id].name + ") Tj"), `card name in PDF: ${deck.cards[id].name}`);
+    assert(text.includes("(I'm about to launch something new) Tj"), "question in PDF");
+    assert(text.includes("(1. The heart of the offer) Tj"), "position label in PDF");
+    assert(text.includes("/Subtype /Link") && text.includes("/URI (https://example.test/services)"), "services link annotation");
+    assert(text.includes("/BaseFont /Helvetica ") && text.includes("/BaseFont /Helvetica-Bold "), "standard fonts");
+    assert(bytes.length > 200000 && bytes.length < 2000000, `size ${bytes.length} looks like text plus 4 images`);
+
+    // Keep it around: a link to view it, and a copy on disk for pypdf (dev server only).
+    const url = URL.createObjectURL(blob);
+    window.__lastPdfUrl = url;
+    document.getElementById("pdf-link").innerHTML = `<a href="${url}" target="_blank" rel="noopener">Open the last generated PDF</a> (${(bytes.length / 1024).toFixed(0)} KB)`;
+    await fetch("/test/save-pdf", { method: "POST", body: blob }).catch(() => {});
+  });
+
+  await test("PDF: still builds when card images are missing, and escapes special characters", async () => {
+    const w = boot({ cardsBaseUrl: "/nope/" }, "q=0&c=1,2,3,4");
+    await waitFor(() => !w.pullBtn().disabled, 3000, "restore");
+    const blob = await w.host.marketingTarot.buildPdf();
+    const text = latin1(new Uint8Array(await blob.arrayBuffer()));
+    checkXref(null, text);
+    eq(count(text, "/Subtype /Image"), 0, "no images embedded");
+    assert(text.includes("(" + deck.cards[1].name + ") Tj"), "text still present");
+
+    const original = window.MARKETING_TAROT_DECK;
+    const clone = JSON.parse(JSON.stringify(original));
+    clone.cards[5].name = "Paren(the)sis \\ back ’curly’ — dash é";
+    window.MARKETING_TAROT_DECK = clone;
     try {
-      const w = boot({ emailEndpoint: "/api/send-reading" });
-      assert(w.q(".mt-email").hidden, "email box hidden before a reading");
-      await w.pull();
-      const box = w.q(".mt-email");
-      assert(!box.hidden, "email box visible after a reading");
-      eq(box.querySelector("h3").textContent, deck.email_box.heading, "heading copy");
-      eq(box.querySelector(".mt-email__text").textContent, deck.email_box.text, "body copy");
-      eq(box.querySelector('input[name="newsletter"]').checked, false, "newsletter starts unchecked");
-      eq(box.querySelector(".mt-email__privacy a").getAttribute("href"), "https://example.test/privacy", "privacy link");
-      const form = box.querySelector("form");
-      const input = box.querySelector("#mt-email-input");
-      const status = box.querySelector(".mt-email__status");
-      const submit = () => form.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
-
-      input.value = "not-an-email";
-      submit();
-      eq(calls.length, 0, "no request for an invalid email");
-      eq(input.getAttribute("aria-invalid"), "true", "field flagged invalid");
-      assert(status.classList.contains("is-error") && status.textContent.length > 0, "validation message shown");
-
-      input.value = "reader@example.test";
-      box.querySelector('input[name="newsletter"]').checked = true;
-      respond = () => new Response("oops", { status: 500 });
-      submit();
-      await waitFor(() => status.classList.contains("is-error"), 3000, "error status");
-      eq(calls.length, 1, "one request");
-      const body = calls[0].body;
-      eq(body.email, "reader@example.test", "payload email");
-      eq(body.newsletter, true, "payload newsletter");
-      eq(body.spread, 0, "payload spread");
-      eq(body.cards.join(","), w.ids().join(","), "payload cards match the reading");
-      eq(body.website, "", "honeypot empty");
-      assert(!box.querySelector('button[type="submit"]').disabled, "button re-enabled after failure");
-
-      respond = () => new Response(JSON.stringify({ ok: true }), { status: 200 });
-      submit();
-      await waitFor(() => status.classList.contains("is-success"), 3000, "success status");
-      eq(status.textContent, deck.email_box.confirmation, "confirmation copy");
-      assert(input.disabled && box.querySelector('button[type="submit"]').disabled, "form locked after sending");
-
-      await w.pull();
-      assert(!input.disabled, "form reset for the next reading");
-      eq(status.textContent, "", "status cleared for the next reading");
-
-      // A reply that arrives after the user has already pulled again must not touch the new form.
-      let release;
-      respond = () => new Promise((r) => { release = () => r(new Response(JSON.stringify({ ok: true }), { status: 200 })); });
-      input.value = "late@example.test";
-      submit();
-      await waitFor(() => !!release, 1000, "request in flight");
-      await w.pull();
-      release();
-      await sleep(50);
-      eq(status.textContent, "", "stale reply ignored");
-      assert(!input.disabled, "new form still usable");
+      const w2 = boot({ cardsBaseUrl: "/nope/" }, "q=0&c=5,6,7,8");
+      await waitFor(() => !w2.pullBtn().disabled, 3000, "restore");
+      const t2 = latin1(new Uint8Array(await (await w2.host.marketingTarot.buildPdf()).arrayBuffer()));
+      assert(t2.includes("(Paren\\(the\\)sis \\\\ back \x92curly\x92 \x97 dash \xe9) Tj"), "parentheses and backslash escaped, curly quotes and dash mapped to WinAnsi");
     } finally {
-      window.fetch = realFetch;
+      window.MARKETING_TAROT_DECK = original;
+    }
+  });
+
+  await test("PDF: the Download button builds the file and triggers a download", async () => {
+    const w = boot({}, "q=1&c=10,11,12,13");
+    await waitFor(() => !w.pullBtn().disabled, 3000, "restore");
+    const realCreate = URL.createObjectURL, realClick = HTMLAnchorElement.prototype.click;
+    let created = null, clicked = null;
+    URL.createObjectURL = (b) => { created = b; return "blob:fake"; };
+    HTMLAnchorElement.prototype.click = function () { clicked = { href: this.getAttribute("href"), download: this.download }; };
+    try {
+      const btn = w.q(".mt-reading__pdf");
+      btn.click();
+      eq(btn.disabled, true, "button disabled while preparing");
+      eq(btn.textContent, "Preparing PDF…", "preparing label");
+      await waitFor(() => !btn.disabled, 5000, "PDF to finish");
+      assert(created && created.type === "application/pdf", "a PDF blob was created");
+      eq(clicked && clicked.download, "marketing-tarot-reading.pdf", "download filename");
+      eq(clicked && clicked.href, "blob:fake", "anchor points at the blob");
+      eq(w.q(".mt-reading__pdf-status").textContent, "", "no error shown");
+      eq(btn.textContent, "Download as PDF", "label restored");
+    } finally {
+      URL.createObjectURL = realCreate;
+      HTMLAnchorElement.prototype.click = realClick;
+    }
+  });
+
+  await test("PDF: a build failure shows the fallback message and re-enables the button", async () => {
+    const w = boot({}, "q=1&c=10,11,12,13");
+    await waitFor(() => !w.pullBtn().disabled, 3000, "restore");
+    const realBuild = window.MarketingTarotPdf.build;
+    window.MarketingTarotPdf.build = () => Promise.reject(new Error("boom"));
+    try {
+      const btn = w.q(".mt-reading__pdf");
+      btn.click();
+      await waitFor(() => !btn.disabled, 3000, "button re-enabled");
+      const status = w.q(".mt-reading__pdf-status");
+      assert(status.classList.contains("is-error") && /print/i.test(status.textContent), "fallback message mentions printing");
+      await w.pull();
+      eq(status.textContent, "", "status cleared on the next reading");
+    } finally {
+      window.MarketingTarotPdf.build = realBuild;
     }
   });
 
