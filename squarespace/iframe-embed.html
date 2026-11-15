@@ -1,0 +1,29 @@
+<!--
+  Marketing Tarot: iframe embed for Squarespace.
+  1. Deploy the site/ folder (see README) and note its URL, e.g. https://tarot.merlinitemarketing.com
+  2. In Squarespace, add a Code Block (HTML) to the page and paste this whole snippet.
+  3. Replace YOUR-WIDGET-URL below with the deployed URL.
+  The widget tells the page how tall it is, so the iframe grows and shrinks with the reading.
+-->
+<iframe
+  id="marketing-tarot-frame"
+  src="https://YOUR-WIDGET-URL/"
+  title="Marketing Tarot"
+  style="display:block;width:100%;border:0;min-height:560px;overflow:hidden;"
+  scrolling="no"
+></iframe>
+<script>
+  (function () {
+    var frame = document.getElementById("marketing-tarot-frame");
+    if (!frame) return;
+    var origin;
+    try { origin = new URL(frame.src).origin; } catch (e) { return; }
+    window.addEventListener("message", function (event) {
+      if (event.origin !== origin) return;
+      var data = event.data || {};
+      if (data.type === "marketing-tarot:height" && data.height > 0) {
+        frame.style.height = Math.ceil(data.height) + "px";
+      }
+    });
+  })();
+</script>

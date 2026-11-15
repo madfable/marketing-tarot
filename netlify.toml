@@ -1,0 +1,20 @@
+[build]
+  publish = "site"
+  command = "npm run build"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# Let merlinitemarketing.com (and the Squarespace editor) put this site in an iframe.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = "frame-ancestors 'self' https://merlinitemarketing.com https://www.merlinitemarketing.com https://*.squarespace.com"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+[[headers]]
+  for = "/cards/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

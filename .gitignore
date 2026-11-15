@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.netlify/
+.env
+.env.*
+Thumbs.db
+.DS_Store
+
+# Full-size card scans (regenerate with npm run cards)
+assets/cards-src/
+
+# Kelly's original brief files, not for a public repo
+/Marketing-Tarot-for-Mike (1).pdf
+/merlinite-marketing-tarot (1).json
+/tarot reader idea.odt

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Marketing Tarot</title>
+  <meta name="description" content="Pick a marketing question, pull four cards, and get a reading written for small wellness businesses.">
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="marketing-tarot"></div>
+
+  <script>
+    // Site-specific settings. Everything else lives in deck.js (the copy) and app.js (the logic).
+    window.MARKETING_TAROT_CONFIG = {
+      servicesUrl: "https://merlinitemarketing.com/services",
+      privacyUrl: "https://merlinitemarketing.com/privacy-policy",
+      // Where the "Email my reading" form posts. "" hides the email box entirely.
+      // GitHub Pages can't run the send-reading function, so this stays off until an email
+      // backend is chosen (see README, "Email box"). With the Netlify setup use "/api/send-reading".
+      emailEndpoint: "",
+      // Folder that holds the 78 card images, named like the-fool.jpg, ace-of-wands.jpg.
+      cardsBaseUrl: "cards/",
+      imageExt: ".jpg"
+    };
+  </script>
+  <script src="deck.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
