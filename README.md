@@ -2,8 +2,8 @@
 
 A four-card tarot reading generator for merlinitemarketing.com, built from Kelly's brief
 (`Marketing-Tarot-for-Mike (1).pdf`). A visitor picks a marketing question, shuffles,
-pulls four cards, and reads them on the page. A "Download as PDF" button saves the reading
-as a PDF, built right in the browser.
+gets four cards dealt face down, turns each one over, and reads them on the page. A
+"Download as PDF" button saves the reading as a PDF, built right in the browser.
 
 No dependencies beyond Node 20+ (and Python with Pillow, only to regenerate card images).
 
@@ -23,7 +23,7 @@ data/deck.json                 Kelly's copy: 7 spreads, 78 cards, footer. Source
 site/                          The static widget (what GitHub Pages serves)
   index.html                   Standalone page + site config (Services URL, image folder)
   styles.css                   All styles, scoped under .mt-widget, plus print styles
-  app.js                       Shuffle, reveal, PDF button, iframe messaging
+  app.js                       Shuffle, turn-over, PDF button, iframe messaging
   pdf.js                       Builds the PDF in the browser (no libraries)
   deck.js                      GENERATED from data/deck.json (npm run build:deck)
   cards/                       78 web-sized card images, the-fool.jpg ... king-of-pentacles.jpg
@@ -48,8 +48,9 @@ npm run dev
 ```
 
 Open http://localhost:8787. `npm test` validates `deck.json` and syntax-checks the scripts.
-http://localhost:8787/test/ runs the widget's browser test suite (shuffle, rendering of all
-78 cards, hash restore, escaping, PDF generation, iframe messaging, accessibility basics)
+http://localhost:8787/test/ runs the widget's browser test suite (shuffle, turning cards
+over one by one, rendering of all 78 cards, hash restore, escaping, PDF generation, iframe
+messaging, accessibility basics)
 and shows pass/fail on the page, with a link to open the last generated PDF. The suite also
 saves that PDF to `dist/last-reading.pdf`, served at http://localhost:8787/test/last-reading.pdf.
 http://localhost:8787/test/embed.html loads the real Squarespace snippet against the dev
@@ -91,10 +92,16 @@ theme's global styles can still leak in, so check it on the live page.
 - Every question uses the same four-card layout. The position labels come from the
   chosen spread in `deck.json`.
 - Four cards are drawn at random from all 78 with no repeats (Fisher-Yates using
-  `crypto.getRandomValues`). All upright; reversals are off (`"reversals": false`).
+  `crypto.getRandomValues`, with rejection sampling so every card is equally likely).
+  All upright; reversals are off (`"reversals": false`).
+- All four cards are decided the moment the visitor shuffles, then dealt face down. The
+  visitor turns them over one at a time, in any order, by tapping or clicking a card (a
+  real button, so it works from the keyboard and names the position for screen readers).
+  Turning a card only reveals it; the four cards can't change or repeat while flipping.
 - Each card shows the position label, image, name, classic meaning, then marketing meaning.
+  The "Download as PDF" button appears once all four are face up.
 - The reading is stored in the URL hash so a refresh, or a shared link, shows the same
-  cards.
+  cards. A restored reading comes back face up, since it has already been seen.
 - The footer under every reading comes from `deck.json`, with the last sentence linked
   to the Services page (opening outside the iframe).
 

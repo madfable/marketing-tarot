@@ -66,7 +66,7 @@
       rootSelector: "#" + id,
       servicesUrl: "https://example.test/services",
       cardsBaseUrl: "/cards/",
-      shuffleMs: 0, revealStaggerMs: 0, flipMs: 0, scrollOnPull: false, updateHash: false
+      shuffleMs: 0, scrollOnPull: false, updateHash: false
     }, cfg);
     new Function(appSource)(); // same as a <script> tag, scoped to this instance's root
     const q = (sel) => host.querySelector(sel);
@@ -78,6 +78,9 @@
       reading: () => q(".mt-reading"),
       cards: () => qa(".mt-card"),
       ids: () => qa(".mt-card").map((c) => Number(c.dataset.cardId)),
+      faceDown: () => qa(".mt-card.is-facedown"),
+      turns: () => qa(".mt-card__turn"),
+      flipAll: () => host.marketingTarot.flipAll(),
       async pull() {
         q(".mt-controls").dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
         await waitFor(() => !q(".mt-controls__pull").disabled, 3000, "pull to finish");
@@ -156,12 +159,61 @@
       const img = card.querySelector("img");
       assert(img.getAttribute("src").endsWith("/cards/" + slug(c.name) + ".jpg"), `card ${i} image path`);
       assert(img.alt.includes(c.name) && !/rider/i.test(img.alt), `card ${i} alt text (no trademark)`);
-      assert(!card.classList.contains("is-facedown"), `card ${i} flipped face up`);
+      assert(card.classList.contains("is-facedown"), `card ${i} dealt face down`);
     });
     eq(w.pullBtn().textContent, "Shuffle & pull again", "button label after a pull");
-    eq(w.q(".mt-reading__pdf").textContent, "Download as PDF", "PDF button present");
-    assert(!/rider/i.test(w.host.textContent), "no Rider-Waite wording anywhere");
     assert(w.q(".mt-announce").textContent.includes(spread.question), "screen-reader announcement names the question");
+    w.flipAll();
+    eq(w.faceDown().length, 0, "flipAll turns every card");
+    eq(w.ids().join(), ids.join(), "same four cards after turning them over");
+    eq(w.q(".mt-reading__pdf").textContent, "Download as PDF", "PDF button present");
+    eq(w.q(".mt-reading__pdf").hidden, false, "PDF button shown once every card is up");
+    assert(!/rider/i.test(w.host.textContent), "no Rider-Waite wording anywhere");
+  });
+
+  await test("cards are dealt face down and turn over one at a time, in any order, without ever changing", async () => {
+    const w = boot();
+    await w.pull();
+    const ids = w.ids();
+    const spread = deck.spreads[0];
+    eq(new Set(ids).size, 4, "4 distinct cards dealt");
+    w.cards().forEach((card, i) => {
+      assert(card.classList.contains("is-facedown"), `card ${i} starts face down`);
+      const turn = card.querySelector(".mt-card__turn");
+      eq(turn && turn.tagName, "BUTTON", `card ${i} has a Turn over button`);
+      eq(turn.disabled, false, `card ${i} button enabled once dealt`);
+      eq(turn.getAttribute("aria-label"), `Turn over card ${i + 1}: ${spread.positions[i]}`, `card ${i} button names its position`);
+      eq(card.querySelector(".mt-card__face--front").getAttribute("aria-hidden"), "true", `card ${i} picture hidden from screen readers while face down`);
+      card.querySelectorAll(".mt-card__text").forEach((t) => eq(t.getAttribute("aria-hidden"), "true", `card ${i} text hidden while face down`));
+    });
+    eq(w.q(".mt-reading__pdf").hidden, true, "PDF button waits until all cards are turned");
+    eq(w.q(".mt-reading__flip-hint").hidden, false, "flip hint shown");
+    assert(/face down/.test(w.q(".mt-announce").textContent), "announcement says the cards are face down");
+
+    const order = [2, 0, 3, 1];
+    order.forEach((idx, step) => {
+      const card = w.cards()[idx];
+      card.querySelector(".mt-card__turn").click();
+      assert(!card.classList.contains("is-facedown"), `card ${idx} turned over`);
+      eq(card.querySelector(".mt-card__face--front").getAttribute("aria-hidden"), null, `card ${idx} picture exposed`);
+      card.querySelectorAll(".mt-card__text").forEach((t) => eq(t.getAttribute("aria-hidden"), null, `card ${idx} text exposed`));
+      eq(card.querySelector(".mt-card__turn").hidden, true, `card ${idx} button gone`);
+      eq(w.ids().join(), ids.join(), `cards unchanged after turn ${step + 1}`);
+      eq(w.faceDown().length, 3 - step, `${3 - step} cards still face down after turn ${step + 1}`);
+      const name = deck.cards[ids[idx]].name;
+      assert(w.q(".mt-announce").textContent.includes(name), `announcement names ${name}`);
+      eq(w.q(".mt-reading__pdf").hidden, step < 3, `PDF button ${step < 3 ? "hidden" : "shown"} after turn ${step + 1}`);
+      card.querySelector(".mt-card__turn").click();
+      eq(w.ids().join(), ids.join(), "clicking a turned card again changes nothing");
+      eq(w.faceDown().length, 3 - step, "and turns nothing back over");
+    });
+    eq(w.q(".mt-reading__flip-hint").hidden, true, "flip hint gone once all four are up");
+    assert(w.q(".mt-announce").textContent.includes(spread.question), "ready announcement after the last turn");
+
+    await w.pull();
+    eq(w.faceDown().length, 4, "pull again deals a fresh face-down set");
+    eq(w.q(".mt-reading__pdf").hidden, true, "PDF button hidden again");
+    eq(w.turns().filter((b) => !b.hidden).length, 4, "four fresh Turn over buttons");
   });
 
   await test("300 pulls never repeat a card within a reading and cover the whole deck", async () => {
@@ -173,6 +225,9 @@
       eq(ids.length, 4, `pull ${i} has 4 cards`);
       eq(new Set(ids).size, 4, `pull ${i} has 4 distinct cards`);
       ids.forEach((id) => { assert(id >= 0 && id < 78, `pull ${i} id in range`); seen.add(id); });
+      w.flipAll();
+      eq(w.ids().join(), ids.join(), `pull ${i}: turning the cards over doesn't change them`);
+      eq(w.faceDown().length, 0, `pull ${i}: all four turned`);
     }
     eq(seen.size, 78, "every card appeared at least once in 300 pulls");
   });
@@ -208,6 +263,11 @@
     eq(w.select().value, "5", "dropdown synced");
     eq(w.q(".mt-reading__question").textContent, deck.spreads[5].question, "heading");
     eq(w.ids().join(","), "77,0,40,13", "card order preserved");
+    eq(w.faceDown().length, 0, "a restored reading comes back face up");
+    eq(w.turns().length, 0, "no Turn over buttons on a restored reading");
+    eq(w.q(".mt-reading__pdf").hidden, false, "PDF button available straight away");
+    eq(w.q(".mt-reading__flip-hint").hidden, true, "no flip hint");
+    w.cards().forEach((c, i) => eq(c.querySelector(".mt-card__name").getAttribute("aria-hidden"), null, `restored card ${i} text exposed`));
   });
 
   await test("footer keeps Kelly's copy exactly and links the last sentence to Services, leaving the iframe", async () => {
@@ -222,7 +282,7 @@
   });
 
   await test("pull is ignored while a reveal is in progress, then works again", async () => {
-    const w = boot({ shuffleMs: 150, flipMs: 150 });
+    const w = boot({ shuffleMs: 150 });
     w.q(".mt-controls").dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
     assert(w.pullBtn().disabled, "button disabled while busy");
     eq(w.pullBtn().textContent, "Shuffling…", "busy label");
@@ -230,7 +290,12 @@
     w.q(".mt-controls").dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
     w.q(".mt-reading__again").click();
     eq(w.ids().join(), first, "second pull ignored while busy");
+    assert(w.turns().every((b) => b.disabled), "cards can't be turned while shuffling");
+    w.turns()[0].click();
+    w.flipAll();
+    eq(w.faceDown().length, 4, "turning is ignored while shuffling");
     await waitFor(() => !w.pullBtn().disabled, 3000, "busy to clear");
+    assert(w.turns().every((b) => !b.disabled), "cards can be turned once dealt");
     let changed = false;
     for (let i = 0; i < 6 && !changed; i++) { await w.pull(); changed = w.ids().join() !== first; }
     assert(changed, "a later pull produces a different reading");
@@ -267,6 +332,11 @@
       eq(w.q(".mt-card__marketing").textContent, clone.cards[0].marketing_meaning, "meaning rendered as text");
       eq(w.q(".mt-reading__footer a").textContent, "Sentence two!", "only the services link is a link");
       eq(w.qa(".mt-reading__footer a").length, 1, "injected footer anchor neutralised");
+      await w.pull();
+      eq(w.turns()[0].getAttribute("aria-label"), "Turn over card 1: " + clone.spreads[0].positions[0], "position label escaped in the Turn over button");
+      eq(w.q(".mt-card__turn i"), null, "no injected element inside the button");
+      eq(w.q(".mt-card__position i"), null, "no injected element in the position label");
+      eq(window.__xss, undefined, "still no script executed after a pull");
     } finally {
       window.MARKETING_TAROT_DECK = original;
       delete window.__xss;
@@ -408,6 +478,13 @@
     eq(w.q(".mt-announce").getAttribute("role"), "status", "a short status region exists instead");
     await w.pull();
     eq(document.activeElement, w.q(".mt-reading__question"), "focus moved to the reading heading");
+    const first = w.cards()[0];
+    const turn = first.querySelector(".mt-card__turn");
+    eq(turn.tagName, "BUTTON", "Turn over control is a real button (keyboard operable)");
+    assert(/^Turn over card 1: /.test(turn.getAttribute("aria-label")), "button labelled with the card position");
+    turn.click();
+    eq(document.activeElement, first.querySelector(".mt-card__name h3"), "focus moves to the turned card's name");
+    eq(first.querySelector(".mt-card__name").getAttribute("aria-hidden"), null, "card text exposed once turned");
     w.cards().forEach((c, i) => assert(c.querySelector("img").alt.length > 0, `card ${i} image has alt`));
     const ids = w.qa("[id]").map((el) => el.id);
     eq(new Set(ids).size, ids.length, "no duplicate ids inside the widget");

@@ -1,7 +1,7 @@
 /* Marketing Tarot widget
    Reads window.MARKETING_TAROT_DECK (from deck.js) and window.MARKETING_TAROT_CONFIG,
-   renders into #marketing-tarot, and handles shuffle, reveal, and the PDF download
-   (window.MarketingTarotPdf from pdf.js). */
+   renders into #marketing-tarot, and handles shuffle, turning the cards over, and the
+   PDF download (window.MarketingTarotPdf from pdf.js). */
 (function () {
   "use strict";
 
@@ -18,14 +18,17 @@
     pullAgainButton: "Shuffle & pull again",
     shufflingButton: "Shuffling…",
     readingHint: "Each spot asks its own question. The card that landed there is the answer.",
+    flipHint: "Your cards are face down. Tap or click each one to turn it over.",
+    flipButton: "Turn over",
+    flipLabel: "Turn over card {n}: {position}",
+    dealtAnnouncement: "Four cards are face down for “{question}”. Turn each one over to read it.",
+    flippedAnnouncement: "Card {n}, {position}: {name}.",
     readyAnnouncement: "Your reading is ready: four cards for “{question}”.",
     pdfButton: "Download as PDF",
     pdfPreparing: "Preparing PDF…",
     pdfError: "Couldn't build the PDF. Try printing this page instead.",
     pdfFilename: "marketing-tarot-reading.pdf",
     shuffleMs: 900,
-    revealStaggerMs: 320,
-    flipMs: 700,
     scrollOnPull: true,
     updateHash: true
   };
@@ -64,6 +67,12 @@
       .replace(/'/g, "&#39;");
   }
 
+  function fill(template, values) {
+    return String(template).replace(/\{(\w+)\}/g, function (m, key) {
+      return Object.prototype.hasOwnProperty.call(values, key) ? values[key] : m;
+    });
+  }
+
   function slug(name) {
     return String(name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   }
@@ -72,16 +81,20 @@
     return config.cardsBaseUrl + slug(card.name) + config.imageExt;
   }
 
+  // Unbiased random integer in [0, maxExclusive) from the browser's cryptographic
+  // generator. Rejection sampling avoids the slight skew a plain modulo would add.
   function randomInt(maxExclusive) {
     if (window.crypto && window.crypto.getRandomValues) {
       var a = new Uint32Array(1);
-      window.crypto.getRandomValues(a);
+      var limit = 0x100000000 - (0x100000000 % maxExclusive);
+      do { window.crypto.getRandomValues(a); } while (a[0] >= limit);
       return a[0] % maxExclusive;
     }
     return Math.floor(Math.random() * maxExclusive);
   }
 
-  // Fisher-Yates over all 78 ids, take the first N. No repeats by construction.
+  // Fisher-Yates over all 78 ids, take the first N. The four cards are decided here,
+  // before anything is shown, so turning them over one by one can never repeat a card.
   function drawCards(n) {
     var ids = [];
     for (var i = 0; i < deck.cards.length; i++) ids.push(i);
@@ -166,10 +179,11 @@
         '<section class="mt-reading" hidden>' +
           '<h2 class="mt-reading__question" tabindex="-1"></h2>' +
           '<p class="mt-reading__hint">' + esc(config.readingHint) + "</p>" +
+          '<p class="mt-reading__flip-hint" hidden>' + esc(config.flipHint) + "</p>" +
           '<ol class="mt-cards"></ol>' +
           '<p class="mt-reading__footer">' + footerHtml() + "</p>" +
           '<div class="mt-reading__actions">' +
-            '<button type="button" class="mt-button mt-reading__pdf">' + esc(config.pdfButton) + "</button>" +
+            '<button type="button" class="mt-button mt-reading__pdf" hidden>' + esc(config.pdfButton) + "</button>" +
             '<button type="button" class="mt-button mt-button--ghost mt-reading__again">' + esc(config.pullAgainButton) + "</button>" +
           "</div>" +
           '<p class="mt-reading__pdf-status" role="status" aria-live="polite"></p>' +
@@ -187,40 +201,66 @@
     return esc(m[1] + lead) + '<a href="' + esc(config.servicesUrl) + '" target="_top">' + esc(m[2].trim()) + "</a>";
   }
 
-  function cardHtml(card, position, index) {
+  // A face-down card hides its picture and text from assistive tech until it is turned
+  // over, and carries a "Turn over" button that covers the whole picture. Cards restored
+  // from a link render face up with no button.
+  function cardHtml(card, position, index, facedown) {
+    var n = index + 1;
     var alt = card.name + " card from " + config.deckLabel;
+    var covered = facedown ? ' aria-hidden="true"' : "";
+    var turnLabel = fill(config.flipLabel, { n: n, position: position });
     return (
-      '<li class="mt-card is-facedown" data-card-id="' + card.id + '">' +
-        '<p class="mt-card__position"><span class="mt-card__position-num" aria-hidden="true">' + (index + 1) + "</span>" +
-          '<span class="mt-visually-hidden">Card ' + (index + 1) + ": </span>" + esc(position) + "</p>" +
+      '<li class="mt-card' + (facedown ? " is-facedown" : "") + '" data-card-id="' + card.id + '">' +
+        '<p class="mt-card__position"><span class="mt-card__position-num" aria-hidden="true">' + n + "</span>" +
+          '<span class="mt-visually-hidden">Card ' + n + ": </span>" + esc(position) + "</p>" +
         '<figure class="mt-card__figure">' +
           '<div class="mt-card__flip">' +
-            '<div class="mt-card__face mt-card__face--front">' +
+            '<div class="mt-card__face mt-card__face--front"' + covered + ">" +
               '<img src="' + esc(imageUrl(card)) + '" alt="' + esc(alt) + '" loading="eager" decoding="async">' +
               '<div class="mt-card__placeholder" aria-hidden="true">' + esc(card.name) + "</div>" +
             "</div>" +
             '<div class="mt-card__face mt-card__face--back" aria-hidden="true"></div>' +
           "</div>" +
+          (facedown
+            ? '<button type="button" class="mt-card__turn" aria-label="' + esc(turnLabel) + '" disabled>' +
+                '<span aria-hidden="true">' + esc(config.flipButton) + "</span>" +
+              "</button>"
+            : "") +
         "</figure>" +
-        '<div class="mt-card__text mt-card__name"><h3>' + esc(card.name) + "</h3></div>" +
-        '<p class="mt-card__text mt-card__classic"><strong>Classic meaning:</strong> ' + esc(card.classic_meaning) + "</p>" +
-        '<p class="mt-card__text mt-card__marketing">' + esc(card.marketing_meaning) + "</p>" +
+        '<div class="mt-card__text mt-card__name"' + covered + '><h3 tabindex="-1">' + esc(card.name) + "</h3></div>" +
+        '<p class="mt-card__text mt-card__classic"' + covered + "><strong>Classic meaning:</strong> " + esc(card.classic_meaning) + "</p>" +
+        '<p class="mt-card__text mt-card__marketing"' + covered + ">" + esc(card.marketing_meaning) + "</p>" +
       "</li>"
     );
   }
 
+  function faceDownCount() {
+    return root.querySelectorAll(".mt-card.is-facedown").length;
+  }
+
+  // The flip hint shows while any card is still face down; the PDF button appears once
+  // every card has been turned over (a PDF of face-down cards would give the ending away).
+  function updateProgress() {
+    var left = faceDownCount();
+    root.querySelector(".mt-reading__flip-hint").hidden = left === 0;
+    root.querySelector(".mt-reading__pdf").hidden = left > 0;
+  }
+
+  // animate=true is a fresh pull: shuffle, then deal the four cards face down for the
+  // visitor to turn over. animate=false restores a reading from a link, already face up.
   function renderReading(animate) {
     var spread = deck.spreads[state.spread];
     var section = root.querySelector(".mt-reading");
     var list = root.querySelector(".mt-cards");
     var heading = root.querySelector(".mt-reading__question");
     var announce = root.querySelector(".mt-announce");
+    var facedown = !!animate;
 
     heading.textContent = spread.question;
     announce.textContent = "";
     resetPdfStatus();
     list.innerHTML = state.cards.map(function (id, i) {
-      return cardHtml(deck.cards[id], spread.positions[i], i);
+      return cardHtml(deck.cards[id], spread.positions[i], i, facedown);
     }).join("");
 
     // Swap in a placeholder when an image is missing, instead of a broken icon.
@@ -231,27 +271,21 @@
     });
 
     section.hidden = false;
+    updateProgress();
 
-    var cards = list.querySelectorAll(".mt-card");
-    var reveal = function () {
+    var dealt = function () {
       section.classList.remove("is-shuffling");
-      Array.prototype.forEach.call(cards, function (card, i) {
-        var delay = (animate && !reducedMotion) ? i * config.revealStaggerMs : 0;
-        window.setTimeout(function () { card.classList.remove("is-facedown"); }, delay);
-      });
-      var done = (animate && !reducedMotion) ? cards.length * config.revealStaggerMs + config.flipMs : 0;
-      window.setTimeout(function () {
-        setBusy(false);
-        announce.textContent = config.readyAnnouncement.replace("{question}", spread.question);
-        postHeight();
-      }, done);
+      Array.prototype.forEach.call(list.querySelectorAll(".mt-card__turn"), function (btn) { btn.disabled = false; });
+      setBusy(false);
+      announce.textContent = fill(facedown ? config.dealtAnnouncement : config.readyAnnouncement, { question: spread.question });
+      postHeight();
     };
 
     if (animate && !reducedMotion) {
       section.classList.add("is-shuffling");
-      window.setTimeout(reveal, config.shuffleMs);
+      window.setTimeout(dealt, config.shuffleMs);
     } else {
-      reveal();
+      dealt();
     }
 
     writeHash();
@@ -260,6 +294,32 @@
       if (config.scrollOnPull) section.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
       heading.focus({ preventScroll: true });
     }
+  }
+
+  // Turns one card over. The card itself was decided at pull time, so this only reveals it.
+  function flipCard(card) {
+    if (state.busy || !card || !card.classList.contains("is-facedown")) return;
+    var spread = deck.spreads[state.spread];
+    var index = Array.prototype.indexOf.call(card.parentNode.children, card);
+    var turn = card.querySelector(".mt-card__turn");
+    var name = card.querySelector(".mt-card__name h3");
+
+    card.classList.remove("is-facedown");
+    Array.prototype.forEach.call(card.querySelectorAll(".mt-card__face--front, .mt-card__text"), function (el) {
+      el.removeAttribute("aria-hidden");
+    });
+    if (turn) turn.hidden = true;
+    name.focus({ preventScroll: true });
+
+    updateProgress();
+    var message = fill(config.flippedAnnouncement, { n: index + 1, position: spread.positions[index], name: name.textContent });
+    if (faceDownCount() === 0) message += " " + fill(config.readyAnnouncement, { question: spread.question });
+    root.querySelector(".mt-announce").textContent = message;
+    postHeight();
+  }
+
+  function flipAll() {
+    Array.prototype.forEach.call(root.querySelectorAll(".mt-card.is-facedown"), flipCard);
   }
 
   function setBusy(busy) {
@@ -380,6 +440,10 @@
   });
   root.querySelector(".mt-reading__again").addEventListener("click", pull);
   root.querySelector(".mt-reading__pdf").addEventListener("click", downloadPdf);
+  root.querySelector(".mt-cards").addEventListener("click", function (e) {
+    var btn = e.target.closest ? e.target.closest(".mt-card__turn") : null;
+    if (btn && !btn.disabled) flipCard(btn.closest(".mt-card"));
+  });
 
   if (window.ResizeObserver && window.parent !== window) {
     new ResizeObserver(postHeight).observe(root);
@@ -387,7 +451,7 @@
   window.addEventListener("load", postHeight);
 
   // Small API for tests and for anyone embedding the widget programmatically.
-  root.marketingTarot = { buildPdf: buildPdf, reading: currentReading };
+  root.marketingTarot = { buildPdf: buildPdf, reading: currentReading, flipAll: flipAll };
 
   var fromHash = readHash();
   if (fromHash) {

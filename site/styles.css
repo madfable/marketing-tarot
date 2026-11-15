@@ -188,12 +188,25 @@ html, body {
   text-align: center;
   color: var(--mt-ink-soft);
   font-size: 14px;
-  margin-bottom: 20px;
+  margin-bottom: 6px;
+}
+
+/* Shown while any card is still face down. */
+.mt-reading__flip-hint {
+  text-align: center;
+  color: var(--mt-accent);
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.mt-widget [hidden] {
+  display: none !important;
 }
 
 .mt-cards {
   list-style: none;
-  margin: 0;
+  margin: 14px 0 0;
   padding: 0;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -240,6 +253,7 @@ html, body {
 
 .mt-card__figure {
   grid-area: image;
+  position: relative;
   margin: 0;
   justify-self: center;
   width: 100%;
@@ -336,12 +350,83 @@ html, body {
   font-size: 15px;
 }
 
+/* A face-down card is compact: label, card back, "Turn over". The text joins the layout
+   when the card is turned, fading in once the flip is half-way round. */
+@keyframes mt-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 .mt-card__text {
-  transition: opacity 0.4s ease;
+  animation: mt-fade-in 0.45s ease 0.25s both;
 }
 
 .mt-card.is-facedown .mt-card__text {
+  display: none;
+}
+
+/* "Turn over" button: an invisible button covering the whole face-down picture, with a
+   small pill label along the bottom edge. Removed once the card is turned. */
+.mt-card__turn {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
+
+.mt-card__turn span {
+  display: inline-block;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(43, 34, 51, 0.82);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  transition: background 0.2s ease, color 0.2s ease, opacity 0.3s ease;
+}
+
+.mt-card__turn:hover span,
+.mt-card__turn:focus-visible span {
+  background: var(--mt-gold);
+  color: var(--mt-ink);
+}
+
+.mt-card__turn:focus-visible {
+  outline: 3px solid var(--mt-gold);
+  outline-offset: 3px;
+}
+
+.mt-card__turn:disabled {
+  cursor: default;
+}
+
+.mt-card__turn:disabled span {
   opacity: 0;
+}
+
+.mt-card:not(.is-facedown) .mt-card__turn {
+  display: none;
+}
+
+/* A face-down card lifts slightly under the pointer. */
+.mt-card.is-facedown .mt-card__figure:hover .mt-card__flip {
+  transform: rotateY(180deg) translateY(-4px);
+}
+
+/* Focus lands on the name after a turn; the card appearing is the feedback, no ring needed. */
+.mt-card__name h3:focus {
+  outline: none;
 }
 
 /* Small shimmy while "shuffling". */
@@ -438,6 +523,15 @@ html, body {
     max-width: 104px;
   }
 
+  .mt-card__turn {
+    padding: 8px;
+  }
+
+  .mt-card__turn span {
+    font-size: 12px;
+    padding: 5px 10px;
+  }
+
   .mt-card__name {
     font-size: 19px;
     align-self: end;
@@ -454,9 +548,17 @@ html, body {
 
 @media (prefers-reduced-motion: reduce) {
   .mt-card__flip,
-  .mt-card__text,
+  .mt-card__turn span,
   .mt-button {
     transition: none;
+  }
+
+  .mt-card__text {
+    animation: none;
+  }
+
+  .mt-card.is-facedown .mt-card__figure:hover .mt-card__flip {
+    transform: rotateY(180deg);
   }
 
   .mt-reading.is-shuffling .mt-card__figure {
@@ -475,7 +577,9 @@ html, body {
   .mt-controls,
   .mt-reading__actions,
   .mt-reading__pdf-status,
-  .mt-reading__hint {
+  .mt-reading__hint,
+  .mt-reading__flip-hint,
+  .mt-card__turn {
     display: none !important;
   }
 
@@ -509,7 +613,9 @@ html, body {
   }
 
   .mt-card__text {
+    display: block !important;
     opacity: 1 !important;
+    animation: none !important;
   }
 
   .mt-reading__footer a {
