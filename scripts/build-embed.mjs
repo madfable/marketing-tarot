@@ -14,7 +14,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const site = join(root, "site");
 
 const arg = (name) => { const a = process.argv.find((x) => x.startsWith(`--${name}=`)); return a ? a.slice(name.length + 3) : ""; };
-const siteUrl = (arg("site") || process.env.SITE_URL || "https://YOUR-WIDGET-URL").replace(/\/+$/, "");
+const siteUrl = (arg("site") || process.env.SITE_URL || "https://madfable.github.io/marketing-tarot").replace(/\/+$/, "");
 const emailEndpoint = arg("email") || process.env.EMAIL_ENDPOINT || "";
 
 const config = {

@@ -60,7 +60,7 @@ email preview to `dist/email-preview.html`.
    git-ignored; `site/cards/` (about 9 MB) is committed on purpose.
 3. In the repo: Settings > Pages > Build and deployment > Source: **GitHub Actions**.
 4. The workflow runs on the push and prints the site URL, normally
-   `https://USERNAME.github.io/REPO/`. Open it to confirm the widget works there.
+   `https://madfable.github.io/marketing-tarot/`. Open it to confirm the widget works there.
 
 Updating Kelly's copy later is: replace `data/deck.json`, push. The workflow regenerates
 `deck.js`. (`npm run build:deck` does the same locally and validates the file.)
@@ -71,7 +71,7 @@ restriction; any site could iframe the widget. That's acceptable for this conten
 ## Embed in Squarespace
 
 **Option A, iframe (recommended).** Paste `squarespace/iframe-embed.html` into a Code
-Block and replace `YOUR-WIDGET-URL` with the GitHub Pages URL. The widget posts its
+Block and it already points at the GitHub Pages URL. The widget posts its
 height to the parent page so the iframe resizes as the reading appears. Styling stays
 isolated from the Squarespace theme.
 
@@ -79,7 +79,7 @@ isolated from the Squarespace theme.
 `dist/squarespace-code-block.html` into a Code Block:
 
 ```bash
-npm run build:embed -- --site=https://USERNAME.github.io/REPO
+npm run build:embed -- --site=https://madfable.github.io/marketing-tarot
 ```
 
 Card images still load from GitHub Pages. The widget's CSS is scoped under `.mt-widget`,
