@@ -248,6 +248,22 @@
     eq(missing.length, 0, "missing image files: " + missing.join(", "));
   });
 
+  await test("a card image that fails to load is retried once, then shows a named placeholder", async () => {
+    const w = boot({ cardsBaseUrl: "/no-such-folder/" }, "q=0&c=5,6,7,8");
+    await waitFor(() => !w.pullBtn().disabled, 3000, "restore");
+    await sleep(300);
+    eq(w.qa(".mt-card__face--front.is-missing").length, 0, "no placeholder yet: the retry is pending");
+    await waitFor(() => w.qa(".mt-card__face--front.is-missing").length === 4, 6000, "all four placeholders after the retry");
+    w.cards().forEach((card, i) => {
+      const img = card.querySelector("img");
+      assert(/\?retry=1$/.test(img.getAttribute("src")), `card ${i} was retried with a fresh request`);
+      eq(img.getAttribute("src").split("?")[0], "/no-such-folder/" + slug(deck.cards[5 + i].name) + ".jpg", `card ${i} retried the same file`);
+      eq(card.querySelector(".mt-card__placeholder").textContent, deck.cards[5 + i].name, `card ${i} placeholder names the card`);
+      eq(getComputedStyle(card.querySelector(".mt-card__placeholder")).display, "flex", `card ${i} placeholder visible`);
+      eq(getComputedStyle(img).display, "none", `card ${i} broken image hidden`);
+    });
+  });
+
   await test("invalid hashes are ignored", () => {
     const bad = ["q=9&c=1,2,3,4", "q=0&c=1,1,2,3", "q=0&c=1,2,3", "q=0&c=1,2,3,78", "q=0&c=a,b,c,d", "q=&c=", "garbage", "q=-1&c=1,2,3,4", "q=0&c=1,2,3,4,5", "q=1&c=%E0%A4"];
     for (const h of bad) {

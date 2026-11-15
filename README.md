@@ -58,8 +58,14 @@ server, for checking the iframe height and URL mirroring by hand.
 
 ## Deploy to GitHub Pages
 
-Push to `main`. The workflow regenerates `deck.js` and publishes `site/`. Pages is already
-set to the "GitHub Actions" source in the repo settings.
+Push to `main`. The workflow regenerates `deck.js`, stamps the asset links in `index.html`
+with content hashes (`app.js?v=1a2b3c…`, via `scripts/stamp-assets.mjs`) and publishes
+`site/`. Pages is already set to the "GitHub Actions" source in the repo settings.
+
+GitHub Pages tells browsers to cache every file for 10 minutes. The hashed links mean a
+browser can never pair an old cached script with new styles after a deploy; it either
+shows the whole old version (for up to 10 minutes, or until a hard refresh with
+Ctrl+Shift+R) or the whole new one.
 
 Updating Kelly's copy later is: replace `data/deck.json`, run `npm run build:deck` (it
 validates ids, positions, and meanings), and push.

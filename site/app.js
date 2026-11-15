@@ -263,9 +263,17 @@
       return cardHtml(deck.cards[id], spread.positions[i], i, facedown);
     }).join("");
 
-    // Swap in a placeholder when an image is missing, instead of a broken icon.
+    // If an image fails to load (a flaky connection, say), try once more after a moment;
+    // if it fails again, show a named placeholder instead of a broken icon.
     Array.prototype.forEach.call(list.querySelectorAll(".mt-card__face--front img"), function (img) {
       img.addEventListener("error", function () {
+        if (!img.getAttribute("data-retried")) {
+          img.setAttribute("data-retried", "1");
+          window.setTimeout(function () {
+            img.src = img.getAttribute("src").split("?")[0] + "?retry=1";
+          }, 1500);
+          return;
+        }
         img.parentNode.classList.add("is-missing");
       });
     });

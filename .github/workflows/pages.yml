@@ -26,6 +26,9 @@ jobs:
           node-version: 22
       # Regenerates site/deck.js from data/deck.json, so updating Kelly's copy is just a push.
       - run: node scripts/build-deck.mjs
+      # Adds ?v=<content hash> to the asset links in index.html so a redeploy can never mix
+      # a cached old app.js with a fresh styles.css (GitHub Pages caches files for 10 min).
+      - run: node scripts/stamp-assets.mjs
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
