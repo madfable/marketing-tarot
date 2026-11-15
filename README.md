@@ -40,8 +40,10 @@ scripts/
   build-embed.mjs              -> dist/squarespace-code-block.html
   download-cards.mjs           Fetches the 78 scans from Wikimedia Commons into assets/cards-src/
   resize-cards.py              Makes the 480px web copies in site/cards/ (needs Pillow)
+  resize-cards.mjs             Runs resize-cards.py with python3 or python
   dev-server.mjs               Local preview with the function mounted, dry-run email
   test-send-reading.mjs        Function tests, also writes dist/email-preview.html
+test/                          Browser test suite for the widget (open /test/ on the dev server)
 ```
 
 ## Run it locally
@@ -51,7 +53,11 @@ npm run dev
 ```
 
 Open http://localhost:8787. `npm test` runs the email function tests and writes an
-email preview to `dist/email-preview.html`.
+email preview to `dist/email-preview.html`. http://localhost:8787/test/ runs the widget's
+own browser test suite (shuffle, rendering of all 78 cards, hash restore, escaping, the
+email form, iframe messaging, accessibility basics) and shows pass/fail on the page.
+http://localhost:8787/test/embed.html loads the real Squarespace snippet against the dev
+server, for checking the iframe height and URL mirroring by hand.
 
 ## Deploy to GitHub Pages
 
@@ -84,7 +90,10 @@ npm run build:embed -- --site=https://madfable.github.io/marketing-tarot
 
 Card images still load from GitHub Pages. The widget's CSS is scoped under `.mt-widget`,
 but the Squarespace theme's global styles can leak in, so check it on the live page.
-Readings restore from the page URL's hash either way.
+
+Either way a reading is mirrored into the Squarespace page's URL (`#q=2&c=5,17,40,61`):
+the iframe snippet relays it in both directions, and the inline build writes it directly.
+Copying or refreshing the page brings the same four cards back.
 
 ## Card images
 
@@ -104,8 +113,8 @@ npm run cards
 That runs two steps: `scripts/download-cards.mjs` fetches the 960px scans into
 `assets/cards-src/` (git-ignored, about 45 MB, Commons rate-limits so it takes a few
 minutes), then `scripts/resize-cards.py` writes 480px progressive JPEGs into `site/cards/`
-(about 9 MB total, these are deployed). The resize step needs Python with Pillow
-(`pip install pillow`). The repo already contains the finished `site/cards/`, so this
+(about 9 MB total, these are deployed). The resize step needs Python 3 with Pillow
+(`pip install pillow`); `scripts/resize-cards.mjs` finds `python3` or `python` for you. The repo already contains the finished `site/cards/`, so this
 only matters if you want to regenerate them.
 
 Files are named `site/cards/<slug>.jpg` where the slug is the card name lowercased with
@@ -134,9 +143,14 @@ box appears, posting JSON to that URL:
 ```
 
 The server rebuilds the reading from the question index and card ids, so the endpoint
-cannot be used to send arbitrary text. `website` is a honeypot. The email includes the
-question, the four position labels, the cards with both meanings, the footer with the
-Services link, and a view-online link.
+cannot be used to send arbitrary text. It also refuses non-JSON bodies and any request
+whose `Origin` isn't the function's own site or in `ALLOWED_ORIGINS` (which blocks
+cross-site forms and curl), ignores submissions that fill the hidden honeypot field, and
+rate-limits per IP and per recipient in memory (`RATE_LIMIT_PER_IP`, default 10 an hour;
+`RATE_LIMIT_PER_EMAIL`, default 3 a day). The in-memory limit resets whenever the function
+instance recycles; for a busy site add a persistent store or a Turnstile check. The email
+includes the question, the four position labels, the cards with both meanings, the
+footer with the Services link, and a view-online link.
 
 **What Squarespace can and can't do here.** Squarespace Email Campaigns can collect
 newsletter sign-ups through its own Newsletter Block or Form Block, but it has no API for
@@ -163,8 +177,9 @@ Squarespace site for the inline embed).
 | `SITE_URL` | Where the widget is hosted, used for card image and view-online links. |
 | `SERVICES_URL` | Defaults to `https://merlinitemarketing.com/services`. |
 | `MAILCHIMP_API_KEY`, `MAILCHIMP_SERVER_PREFIX`, `MAILCHIMP_LIST_ID` | Newsletter opt-in. If unset, the checkbox is accepted but nothing is subscribed. |
-| `MAILCHIMP_DOUBLE_OPT_IN` | `1` to send Mailchimp's confirmation email instead of subscribing directly. |
-| `ALLOWED_ORIGINS` | Comma-separated origins allowed to call the endpoint. |
+| `MAILCHIMP_DOUBLE_OPT_IN` | On by default: Mailchimp emails a confirmation link, so nobody can add someone else's address. `0` subscribes directly. |
+| `ALLOWED_ORIGINS` | Comma-separated origins allowed to call the endpoint, e.g. `https://madfable.github.io,https://merlinitemarketing.com`. The function's own origin is always allowed. |
+| `RATE_LIMIT_PER_IP`, `RATE_LIMIT_PER_EMAIL` | Optional overrides for the abuse limits above. |
 | `DRY_RUN` | `1` to log instead of sending (the dev server sets this). |
 
 If Kelly uses a different newsletter tool (Kit, Flodesk), swap the

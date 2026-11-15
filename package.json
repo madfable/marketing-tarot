@@ -10,7 +10,7 @@
     "build:embed": "node scripts/build-embed.mjs",
     "dev": "node scripts/build-deck.mjs && node scripts/dev-server.mjs",
     "test": "node scripts/build-deck.mjs && node scripts/test-send-reading.mjs",
-    "cards": "node scripts/download-cards.mjs && python -I scripts/resize-cards.py"
+    "cards": "node scripts/download-cards.mjs && node scripts/resize-cards.mjs"
   },
   "engines": {
     "node": ">=20.10"

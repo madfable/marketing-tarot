@@ -17,7 +17,7 @@
 // with backoff, so the whole run can take a few minutes.
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const deck = JSON.parse(readFileSync(join(root, "data", "deck.json"), "utf8"));
@@ -26,7 +26,7 @@ const args = process.argv.slice(2);
 const opt = (name, def) => (args.find((a) => a.startsWith(`--${name}=`)) || `--${name}=${def}`).slice(name.length + 3);
 const source = opt("source", "wikimedia");
 const width = Number(opt("width", "640"));
-const outDir = join(root, opt("out", "assets/cards-src"));
+const outDir = resolve(root, opt("out", "assets/cards-src")); // relative to the project, or absolute
 const force = args.includes("--force");
 const UA = "MarketingTarotBuild/1.0 (one-time static site asset fetch)";
 

@@ -4,17 +4,26 @@
 // newsletter (via Mailchimp). The reading is rebuilt here from deck.json, so
 // the client only ever sends a question index and four card ids.
 //
+// Abuse controls: JSON content type required (so cross-site "simple" POSTs are refused),
+// the request Origin must be this site or one in ALLOWED_ORIGINS, a honeypot field, and
+// a small in-memory rate limit per IP and per recipient. The in-memory limit resets when
+// the function instance recycles, so for a busy site add a persistent store or a
+// Turnstile/hCaptcha check on the form.
+//
 // Environment variables (set in Netlify > Site configuration > Environment variables):
 //   RESEND_API_KEY           required to send mail
 //   FROM_EMAIL               e.g. "Kelly at Merlinite Marketing <hello@merlinitemarketing.com>"
 //   REPLY_TO                 optional
-//   SITE_URL                 where the widget is hosted, e.g. https://tarot.merlinitemarketing.com
+//   SITE_URL                 where the widget is hosted, e.g. https://madfable.github.io/marketing-tarot
 //   SERVICES_URL             optional, defaults to https://merlinitemarketing.com/services
 //   MAILCHIMP_API_KEY        optional; newsletter opt-in is skipped if unset
 //   MAILCHIMP_SERVER_PREFIX  e.g. us21 (the part after the dash in the API key)
 //   MAILCHIMP_LIST_ID        the audience id
-//   MAILCHIMP_DOUBLE_OPT_IN  "1" to send a confirmation email instead of subscribing directly
-//   ALLOWED_ORIGINS          comma-separated, only needed if the widget is NOT on this same site
+//   MAILCHIMP_DOUBLE_OPT_IN  defaults to on (Mailchimp emails a confirmation link); "0" subscribes directly
+//   ALLOWED_ORIGINS          comma-separated origins allowed to call this, e.g. the GitHub Pages
+//                            origin and/or https://merlinitemarketing.com. Same-origin is always allowed.
+//   RATE_LIMIT_PER_IP        requests per IP per hour (default 10)
+//   RATE_LIMIT_PER_EMAIL     requests per recipient per day (default 3)
 //   DRY_RUN                  "1" to log instead of calling Resend/Mailchimp (local dev)
 
 import deck from "../lib/deck.mjs"; // generated from data/deck.json by scripts/build-deck.mjs
@@ -26,13 +35,21 @@ const DEFAULT_SERVICES_URL = "https://merlinitemarketing.com/services";
 
 export default async function handler(request) {
   const env = process.env;
-  const cors = corsHeaders(request, env);
+  const origin = request.headers.get("origin") || "";
+  const originOk = isAllowedOrigin(origin, request, env);
+  const cors = originOk && origin ? corsHeaders(origin) : {};
 
   if (request.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: cors });
+    return new Response(null, { status: originOk ? 204 : 403, headers: cors });
   }
   if (request.method !== "POST") {
     return json({ ok: false, error: "Method not allowed" }, 405, cors);
+  }
+  if (!originOk) {
+    return json({ ok: false, error: "Origin not allowed" }, 403, cors);
+  }
+  if (!/^application\/json\b/i.test(request.headers.get("content-type") || "")) {
+    return json({ ok: false, error: "Send JSON" }, 415, cors);
   }
 
   let body;
@@ -40,6 +57,9 @@ export default async function handler(request) {
     body = await request.json();
   } catch {
     return json({ ok: false, error: "Body must be JSON" }, 400, cors);
+  }
+  if (!body || typeof body !== "object") {
+    return json({ ok: false, error: "Body must be a JSON object" }, 400, cors);
   }
 
   // Honeypot: real people never see this field.
@@ -57,6 +77,12 @@ export default async function handler(request) {
   const problem = validateReading(deck, spread, cards);
   if (problem) {
     return json({ ok: false, error: problem }, 400, cors);
+  }
+
+  const ip = clientIp(request);
+  if (!rateLimit.allow("ip:" + ip, Number(env.RATE_LIMIT_PER_IP) || 10, 60 * 60 * 1000) ||
+      !rateLimit.allow("email:" + email.toLowerCase(), Number(env.RATE_LIMIT_PER_EMAIL) || 3, 24 * 60 * 60 * 1000)) {
+    return json({ ok: false, error: "Too many requests, please try again later" }, 429, cors);
   }
 
   const wantsNewsletter = body.newsletter === true;
@@ -126,6 +152,9 @@ async function sendWithResend(env, to, message) {
 async function subscribeWithMailchimp(env, email) {
   const url = `https://${env.MAILCHIMP_SERVER_PREFIX}.api.mailchimp.com/3.0/lists/${env.MAILCHIMP_LIST_ID}/members`;
   const auth = Buffer.from(`anystring:${env.MAILCHIMP_API_KEY}`).toString("base64");
+  // Double opt-in by default: the address is only added once its owner clicks Mailchimp's
+  // confirmation link, so nobody can be put on the list by someone else typing their email.
+  const doubleOptIn = env.MAILCHIMP_DOUBLE_OPT_IN !== "0";
   const res = await fetch(url, {
     method: "POST",
     headers: {
@@ -134,7 +163,7 @@ async function subscribeWithMailchimp(env, email) {
     },
     body: JSON.stringify({
       email_address: email,
-      status: env.MAILCHIMP_DOUBLE_OPT_IN === "1" ? "pending" : "subscribed",
+      status: doubleOptIn ? "pending" : "subscribed",
       tags: ["marketing-tarot"]
     })
   });
@@ -152,10 +181,18 @@ function looksLikeEmail(s) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s) && s.length <= 254;
 }
 
-function corsHeaders(request, env) {
+// Browsers always send Origin on cross-origin and same-origin POSTs. A request with no
+// Origin at all (curl, scripts) is refused unless ALLOWED_ORIGINS is unset and we're in
+// local dev (DRY_RUN), to keep the dev server and tests simple.
+function isAllowedOrigin(origin, request, env) {
   const allowed = (env.ALLOWED_ORIGINS || "").split(",").map((s) => s.trim()).filter(Boolean);
-  const origin = request.headers.get("origin") || "";
-  if (!allowed.length || !allowed.includes(origin)) return {};
+  let self = "";
+  try { self = new URL(request.url).origin; } catch { /* ignore */ }
+  if (origin) return origin === self || allowed.includes(origin);
+  return env.DRY_RUN === "1" || env.ALLOW_NO_ORIGIN === "1";
+}
+
+function corsHeaders(origin) {
   return {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -164,6 +201,26 @@ function corsHeaders(request, env) {
     Vary: "Origin"
   };
 }
+
+function clientIp(request) {
+  const h = request.headers;
+  return (h.get("x-nf-client-connection-ip") || (h.get("x-forwarded-for") || "").split(",")[0] || "unknown").trim();
+}
+
+// Sliding-window counters kept in memory for the life of the function instance.
+export const rateLimit = {
+  buckets: new Map(),
+  allow(key, limit, windowMs) {
+    const now = Date.now();
+    const hits = (this.buckets.get(key) || []).filter((t) => now - t < windowMs);
+    if (hits.length >= limit) { this.buckets.set(key, hits); return false; }
+    hits.push(now);
+    this.buckets.set(key, hits);
+    if (this.buckets.size > 5000) this.buckets.clear(); // crude memory cap
+    return true;
+  },
+  reset() { this.buckets.clear(); }
+};
 
 function json(body, status, extraHeaders) {
   return new Response(JSON.stringify(body), {

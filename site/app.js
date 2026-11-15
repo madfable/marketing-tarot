@@ -19,11 +19,15 @@
     pullAgainButton: "Shuffle & pull again",
     shufflingButton: "Shuffling…",
     readingHint: "Each spot asks its own question. The card that landed there is the answer.",
+    readyAnnouncement: "Your reading is ready: four cards for “{question}”.",
     emailError: "Hmm, that didn't send. Give it a minute and try again.",
     emailInvalid: "That email doesn't look right. Double-check it?",
     sendingButton: "Sending…",
     shuffleMs: 900,
-    revealStaggerMs: 320
+    revealStaggerMs: 320,
+    flipMs: 700,
+    scrollOnPull: true,
+    updateHash: true
   };
 
   var config = assign({}, DEFAULTS, window.MARKETING_TAROT_CONFIG || {});
@@ -38,7 +42,7 @@
 
   var CARDS_PER_READING = deck.cards_per_reading || 4;
   var reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  var state = { spread: 0, cards: [], busy: false };
+  var state = { spread: 0, cards: [], busy: false, emailRequest: 0 };
 
   /* ---------- helpers ---------- */
 
@@ -106,10 +110,14 @@
     var h = window.location.hash.replace(/^#/, "");
     if (!h) return null;
     var params = {};
-    h.split("&").forEach(function (pair) {
-      var kv = pair.split("=");
-      params[decodeURIComponent(kv[0])] = decodeURIComponent(kv[1] || "");
-    });
+    try {
+      h.split("&").forEach(function (pair) {
+        var kv = pair.split("=");
+        params[decodeURIComponent(kv[0])] = decodeURIComponent(kv[1] || "");
+      });
+    } catch (e) {
+      return null; // mangled percent-encoding in a shared link
+    }
     var q = parseInt(params.q, 10);
     var c = (params.c || "").split(",").map(function (x) { return parseInt(x, 10); });
     if (isNaN(q) || q < 0 || q >= deck.spreads.length) return null;
@@ -117,13 +125,21 @@
     return { spread: q, cards: c };
   }
 
+  function currentHash() {
+    return "#q=" + state.spread + "&c=" + state.cards.join(",");
+  }
+
   function writeHash() {
-    var hash = "#q=" + state.spread + "&c=" + state.cards.join(",");
-    if (window.history && window.history.replaceState) {
-      window.history.replaceState(null, "", hash);
-    } else {
-      window.location.hash = hash;
+    var hash = currentHash();
+    if (config.updateHash) {
+      if (window.history && window.history.replaceState) {
+        try { window.history.replaceState(null, "", hash); } catch (e) { /* browser throttled it; harmless */ }
+      } else {
+        window.location.hash = hash;
+      }
     }
+    // Let a host page (the Squarespace iframe snippet) mirror the reading into its own URL.
+    postToParent({ type: "marketing-tarot:reading", hash: hash });
   }
 
   /* ---------- render ---------- */
@@ -167,7 +183,8 @@
           "</div>" +
           '<button type="submit" class="mt-button mt-controls__pull">' + esc(config.pullButton) + "</button>" +
         "</form>" +
-        '<section class="mt-reading" hidden aria-live="polite">' +
+        '<p class="mt-visually-hidden mt-announce" role="status" aria-live="polite"></p>' +
+        '<section class="mt-reading" hidden>' +
           '<h2 class="mt-reading__question" tabindex="-1"></h2>' +
           '<p class="mt-reading__hint">' + esc(config.readingHint) + "</p>" +
           '<ol class="mt-cards"></ol>' +
@@ -179,12 +196,13 @@
   }
 
   // Footer copy comes from deck.json. The last sentence becomes the Services link.
+  // target="_top" so it leaves the iframe when embedded.
   function footerHtml() {
     var text = deck.footer || "";
     var m = text.match(/^(.*?)([^.!?]*[.!?]?)$/);
     if (!m || !m[2].trim()) return esc(text);
     var lead = m[2].match(/^\s*/)[0];
-    return esc(m[1] + lead) + '<a href="' + esc(config.servicesUrl) + '">' + esc(m[2].trim()) + "</a>";
+    return esc(m[1] + lead) + '<a href="' + esc(config.servicesUrl) + '" target="_top">' + esc(m[2].trim()) + "</a>";
   }
 
   function cardHtml(card, position, index) {
@@ -214,8 +232,10 @@
     var section = root.querySelector(".mt-reading");
     var list = root.querySelector(".mt-cards");
     var heading = root.querySelector(".mt-reading__question");
+    var announce = root.querySelector(".mt-announce");
 
     heading.textContent = spread.question;
+    announce.textContent = "";
     list.innerHTML = state.cards.map(function (id, i) {
       return cardHtml(deck.cards[id], spread.positions[i], i);
     }).join("");
@@ -241,8 +261,12 @@
         var delay = (animate && !reducedMotion) ? i * config.revealStaggerMs : 0;
         window.setTimeout(function () { card.classList.remove("is-facedown"); }, delay);
       });
-      var done = (animate && !reducedMotion) ? cards.length * config.revealStaggerMs + 700 : 0;
-      window.setTimeout(function () { setBusy(false); postHeight(); }, done);
+      var done = (animate && !reducedMotion) ? cards.length * config.revealStaggerMs + config.flipMs : 0;
+      window.setTimeout(function () {
+        setBusy(false);
+        announce.textContent = config.readyAnnouncement.replace("{question}", spread.question);
+        postHeight();
+      }, done);
     };
 
     if (animate && !reducedMotion) {
@@ -255,7 +279,7 @@
     writeHash();
     postHeight();
     if (animate) {
-      section.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
+      if (config.scrollOnPull) section.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
       heading.focus({ preventScroll: true });
     }
   }
@@ -283,6 +307,7 @@
   function resetEmailForm() {
     var form = root.querySelector(".mt-email__form");
     if (!form) return;
+    state.emailRequest++; // any reply still in flight belongs to the previous reading; ignore it
     var status = form.querySelector(".mt-email__status");
     status.textContent = "";
     status.className = "mt-email__status";
@@ -322,6 +347,7 @@
       page: window.location.href.split("#")[0]
     };
 
+    var requestId = state.emailRequest;
     btn.disabled = true;
     btn.textContent = config.sendingButton;
     status.textContent = "";
@@ -333,12 +359,14 @@
     }).then(function (res) {
       return res.json().catch(function () { return {}; }).then(function (body) {
         if (!res.ok || !body.ok) throw new Error(body.error || ("HTTP " + res.status));
+        if (requestId !== state.emailRequest) return; // a new reading was pulled meanwhile
         status.textContent = deck.email_box.confirmation;
         status.classList.add("is-success");
         Array.prototype.forEach.call(form.elements, function (el) { el.disabled = true; });
         btn.textContent = deck.email_box.button;
       });
     }).catch(function () {
+      if (requestId !== state.emailRequest) return;
       status.textContent = config.emailError;
       status.classList.add("is-error");
       btn.disabled = false;
@@ -346,13 +374,21 @@
     }).then(postHeight);
   }
 
-  /* ---------- iframe height ---------- */
+  /* ---------- iframe messaging ---------- */
 
-  // When embedded in an iframe (Squarespace), tell the parent page how tall we are.
+  function postToParent(message) {
+    if (window.parent === window) return;
+    window.parent.postMessage(message, "*");
+  }
+
+  // When embedded in an iframe (Squarespace), tell the parent page how tall the widget is.
+  // Measure the widget itself, not the document: the document is never shorter than the
+  // iframe's viewport, which would stop the frame from ever shrinking.
   function postHeight() {
     if (window.parent === window) return;
-    var h = document.documentElement.scrollHeight;
-    window.parent.postMessage({ type: "marketing-tarot:height", height: h }, "*");
+    var rect = root.getBoundingClientRect();
+    var h = Math.ceil(rect.height + rect.top + (window.pageYOffset || 0));
+    postToParent({ type: "marketing-tarot:height", height: h });
   }
 
   /* ---------- wire up ---------- */
@@ -376,7 +412,7 @@
   }
 
   if (window.ResizeObserver && window.parent !== window) {
-    new ResizeObserver(postHeight).observe(document.body);
+    new ResizeObserver(postHeight).observe(root);
   }
   window.addEventListener("load", postHeight);
 

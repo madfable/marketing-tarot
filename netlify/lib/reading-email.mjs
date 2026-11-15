@@ -88,6 +88,7 @@ export function buildReadingEmail(deck, spread, cards, opts = {}) {
   <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f8f3ea;">
     <tr>
       <td align="center" style="padding:24px 12px;">
+        <!--[if mso]><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600"><tr><td><![endif]-->
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:600px;background:#fffdf8;border:1px solid #e3d9c8;border-radius:14px;">
           <tr>
             <td style="padding:28px 24px 8px;">
@@ -110,6 +111,7 @@ export function buildReadingEmail(deck, spread, cards, opts = {}) {
             </td>
           </tr>
         </table>
+        <!--[if mso]></td></tr></table><![endif]-->
         <p style="margin:14px 0 0;font:12px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#8a8194;">You asked for this reading to be emailed to you from the Marketing Tarot on ${esc(siteUrl || "our website")}. Card images: ${esc(deckLabel)}.</p>
       </td>
     </tr>
