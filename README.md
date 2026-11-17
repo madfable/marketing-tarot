@@ -3,7 +3,10 @@
 A four-card tarot reading generator for merlinitemarketing.com, built from Kelly's brief
 (`Marketing-Tarot-for-Mike (1).pdf`). A visitor picks a marketing question, shuffles,
 gets four cards dealt face down, turns each one over, and reads them on the page. A
-"Download as PDF" button saves the reading as a PDF, built right in the browser.
+"Download as PDF" button saves the reading as a PDF, built right in the browser. It is
+styled to match the site it lives on: the teal "reading" arch of the Marketing Tarot
+landing page, cream text, clay buttons, gold card edges, and the site's fonts (see "Look
+and feel").
 
 No dependencies beyond Node 20+ (and Python with Pillow, only to regenerate card images).
 
@@ -75,17 +78,27 @@ restriction; any site could iframe the widget. That's acceptable for this conten
 
 ## Embed in Squarespace
 
-**Option A, iframe (recommended).** Paste `squarespace/iframe-embed.html` into a Code
-Block. It already points at the GitHub Pages URL. The widget posts its height to the
-parent page so the iframe resizes as the reading appears, and the snippet mirrors the
-reading into the page URL (`#q=2&c=5,17,40,61`) in both directions, so a copied or
-refreshed page brings the same four cards back. Styling stays isolated from the
-Squarespace theme.
+**Option A, iframe (recommended).** The Marketing Tarot landing page on
+merlinitemarketing.com is one big Code Block that Kelly wrote by hand. Near the bottom of
+its teal "reading" section is a placeholder: a `<div class="slot">` holding the note
+"MIKE: put the tarot generator embed here" and the text "[Mike's tarot generator goes
+here]". Edit that Code Block and replace that whole div (opening tag to closing tag) with
+the contents of `squarespace/iframe-embed.html`. On any other page, paste the snippet
+into a Code Block of its own.
+
+The snippet already points at the GitHub Pages URL. The widget's background is the same
+teal as the arch, so the frame is invisible, and because the page already has "Take a
+breath and shuffle" above it, the widget leaves out its own title whenever it is inside
+an iframe (`showHeader: "auto"` in `app.js`; set it to `true` or `false` to force it).
+The widget posts its height to the parent page so the iframe resizes as the reading
+appears, and the snippet mirrors the reading into the page URL (`#q=2&c=5,17,40,61`) in
+both directions, so a copied or refreshed page brings the same four cards back. Styling
+stays isolated from the Squarespace theme.
 
 The snippet answers the widget's first height message with an "ack"; only then does the
 widget hide the frame's own scrollbar. If the script never runs (Squarespace 7.0 sites
 with "Ajax loading" on only run Code Block scripts on a full page load; 7.1 sites are
-fine) the frame stays at its 330px starting height but keeps a scrollbar, so the reading
+fine) the frame stays at its 160px starting height but keeps a scrollbar, so the reading
 is still reachable. On a 7.0 site, turn Ajax loading off under Design > Site Styles.
 
 **Option B, inline.** Build the snippet and paste `dist/squarespace-code-block.html`
@@ -98,6 +111,31 @@ npm run build:embed
 Card images still load from GitHub Pages (they're served with permissive CORS, which the
 PDF builder needs). The widget's CSS is scoped under `.mt-widget`, but the Squarespace
 theme's global styles can still leak in, so check it on the live page.
+
+## Look and feel
+
+The widget copies the landing page's own CSS rather than approximating it. Everything is
+a variable at the top of `site/styles.css`:
+
+| Token | Value | Used for |
+| --- | --- | --- |
+| `--mt-bg` | `#264349` | page background, the same teal as the arch |
+| `--mt-bg-deep` | `#1e373c` | card backs |
+| `--mt-ink` / `--mt-ink-soft` | `#f4f1eb` / `#d9e2df` | cream text |
+| `--mt-sand` | `#e6cfb6` | script accents, position labels, links |
+| `--mt-gold` | `#c9a27e` | card edges and the crescent moon |
+| `--mt-clay` | `#93603c` | buttons (the site's "Let's talk" colour; white on it passes AA) |
+| `--mt-clay-light` | `#a8744f` | card fronts |
+| `--mt-field` | `#fbf9f5` | the dropdown |
+
+Fonts are the three families the landing page loads from Google Fonts: Playfair Display
+for headings, Inter for text, Caveat for the handwritten accents ("tap to flip", the
+face-down hint). The widget is its own document inside the iframe, so `site/index.html`
+loads them itself. The card back reuses the moon from Kelly's card illustration.
+
+If Kelly ever changes the arch colour, change `--mt-bg` to match and push. The print
+styles swap the variables to dark-on-white, and the PDF has its own copy of the palette
+at the top of `site/pdf.js` (teal ink, clay accent).
 
 ## How a reading works
 
@@ -170,8 +208,9 @@ Kelly said she'll send a new JSON when she edits copy. Replace `data/deck.json`,
 `npm run build:deck` (it validates ids, positions, and meanings), and push. The
 questions, position labels, card meanings and footer all come from that file. (Her JSON
 also carries an `email_box` section; the email feature was dropped, so it's simply
-ignored.) Headings, button labels, and the PDF messages live at the top of `site/app.js`
-and can be overridden from `MARKETING_TAROT_CONFIG` in `index.html`.
+ignored.) Headings, button labels, the "tap to flip" wording, and the PDF messages live at
+the top of `site/app.js` and can be overridden from `MARKETING_TAROT_CONFIG` in
+`index.html`.
 
 ## Open questions for Kelly
 

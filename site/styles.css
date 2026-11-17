@@ -1,21 +1,32 @@
 /* Marketing Tarot widget. Everything is scoped under .mt-widget so it can sit
-   inside a Squarespace code block without fighting the theme. */
+   inside a Squarespace code block without fighting the theme.
+
+   Colours and fonts match merlinitemarketing.com, specifically the teal "reading"
+   arch on the Marketing Tarot landing page the widget is embedded in: teal
+   background, cream text, clay buttons, gold card edges, Playfair Display headings,
+   Inter body text and Caveat for the little script accents. Change the values below
+   and everything (including the print styles) follows. */
 
 :root {
-  --mt-bg: #f8f3ea;
-  --mt-surface: #fffdf8;
-  --mt-ink: #2b2233;
-  --mt-ink-soft: #5b5266;
-  --mt-line: #e3d9c8;
-  --mt-accent: #6b4e8e;
-  --mt-accent-ink: #ffffff;
-  --mt-gold: #c9a24d;
-  --mt-back-a: #3b2a52;
-  --mt-back-b: #5a3f78;
-  --mt-radius: 14px;
+  --mt-bg: #264349;                    /* teal: the arch the widget sits in */
+  --mt-bg-deep: #1e373c;               /* card backs */
+  --mt-panel: rgba(30, 55, 60, 0.5);   /* boxes on the teal */
+  --mt-line: rgba(230, 207, 182, 0.28);
+  --mt-ink: #f4f1eb;                   /* cream */
+  --mt-ink-soft: #d9e2df;
+  --mt-sand: #e6cfb6;                  /* script accents and small labels */
+  --mt-gold: #c9a27e;                  /* card edges and the moon */
+  --mt-clay: #93603c;                  /* buttons (the site's "Let's talk" clay) */
+  --mt-clay-dark: #7e5234;
+  --mt-clay-light: #a8744f;            /* card fronts */
+  --mt-field: #fbf9f5;                 /* the dropdown */
+  --mt-field-ink: #264349;
+  --mt-error: #f5c6b2;
+  --mt-radius: 24px;
   --mt-card-ratio: 11 / 19;
-  --mt-serif: Georgia, "Times New Roman", serif;
-  --mt-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mt-serif: "Playfair Display", Georgia, "Times New Roman", serif;
+  --mt-sans: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mt-script: Caveat, "Segoe Script", "Bradley Hand", cursive;
 }
 
 /* standalone-only */
@@ -41,18 +52,21 @@ html.mt-embedded {
   font-family: var(--mt-sans);
   color: var(--mt-ink);
   line-height: 1.55;
-  max-width: 1040px;
+  max-width: 920px;
   margin: 0 auto;
-  padding: 24px 16px 40px;
+  padding: 8px 16px 32px;
+  -webkit-font-smoothing: antialiased;
 }
 
 .mt-widget h1,
 .mt-widget h2,
 .mt-widget h3 {
   font-family: var(--mt-serif);
-  font-weight: 400;
-  line-height: 1.2;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: 0;
   margin: 0;
+  color: var(--mt-ink);
 }
 
 .mt-widget p {
@@ -60,7 +74,13 @@ html.mt-embedded {
 }
 
 .mt-widget a {
-  color: var(--mt-accent);
+  color: var(--mt-sand);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.mt-widget a:hover {
+  color: var(--mt-ink);
 }
 
 .mt-visually-hidden {
@@ -75,31 +95,33 @@ html.mt-embedded {
   border: 0;
 }
 
-/* ---------- Header ---------- */
+/* ---------- Header (standalone page only; the host page has its own heading) ---------- */
 
 .mt-header {
   text-align: center;
-  margin-bottom: 20px;
+  padding-top: 24px;
+  margin-bottom: 28px;
 }
 
 .mt-header h1 {
-  font-size: clamp(28px, 4vw, 38px);
-  letter-spacing: 0.01em;
+  font-size: clamp(32px, 4.5vw, 46px);
 }
 
 .mt-header__sub {
   color: var(--mt-ink-soft);
-  margin-top: 6px;
-  font-size: 16px;
+  margin: 10px auto 0;
+  max-width: 560px;
+  font-size: 17px;
+  line-height: 1.6;
 }
 
 /* ---------- Controls ---------- */
 
 .mt-controls {
-  background: var(--mt-surface);
+  background: var(--mt-panel);
   border: 1px solid var(--mt-line);
   border-radius: var(--mt-radius);
-  padding: 18px;
+  padding: 20px;
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 12px 14px;
@@ -108,13 +130,15 @@ html.mt-embedded {
 
 .mt-controls__field {
   display: grid;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
 }
 
 .mt-controls label {
   font-size: 14px;
-  color: var(--mt-ink-soft);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--mt-sand);
 }
 
 .mt-select {
@@ -123,61 +147,70 @@ html.mt-embedded {
   width: 100%;
   font: inherit;
   font-size: 16px;
-  color: var(--mt-ink);
-  background: #fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9' viewBox='0 0 14 9'%3E%3Cpath d='M1 1l6 6 6-6' fill='none' stroke='%235b5266' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 14px center;
-  border: 1px solid var(--mt-line);
-  border-radius: 10px;
-  padding: 11px 40px 11px 14px;
+  font-weight: 500;
+  color: var(--mt-field-ink);
+  background: var(--mt-field) url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9' viewBox='0 0 14 9'%3E%3Cpath d='M1 1l6 6 6-6' fill='none' stroke='%23264349' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 18px center;
+  border: 1.5px solid var(--mt-gold);
+  border-radius: 999px;
+  padding: 12px 46px 12px 20px;
   cursor: pointer;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .mt-select:focus-visible,
 .mt-button:focus-visible {
-  outline: 3px solid rgba(107, 78, 142, 0.35);
-  outline-offset: 2px;
+  outline: 3px solid var(--mt-sand);
+  outline-offset: 3px;
 }
 
 .mt-button {
   font: inherit;
   font-size: 16px;
   font-weight: 600;
-  color: var(--mt-accent-ink);
-  background: var(--mt-accent);
-  border: 0;
+  color: #fff;
+  background: var(--mt-clay);
+  border: 2px solid var(--mt-ink);
   border-radius: 999px;
-  padding: 12px 22px;
+  padding: 13px 28px;
   cursor: pointer;
   white-space: nowrap;
-  transition: background 0.15s ease, transform 0.15s ease;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
 }
 
 .mt-button:hover {
-  background: #5a3f78;
+  background: var(--mt-clay-dark);
+  transform: translateY(-2px);
 }
 
 .mt-button:active {
-  transform: translateY(1px);
+  transform: translateY(0);
 }
 
 .mt-button[disabled] {
   opacity: 0.6;
   cursor: wait;
+  transform: none;
 }
 
+/* Outline button, like the chips on the site's dark sections. */
 .mt-button--ghost {
   background: transparent;
-  color: var(--mt-accent);
-  border: 1px solid var(--mt-accent);
+  color: var(--mt-ink);
+  border: 1.5px solid var(--mt-ink);
+  padding: 13.5px 28px;
 }
 
 .mt-button--ghost:hover {
-  background: rgba(107, 78, 142, 0.08);
+  background: var(--mt-ink);
+  color: var(--mt-bg);
 }
 
 /* ---------- Reading ---------- */
 
 .mt-reading {
-  margin-top: 28px;
+  margin-top: 32px;
 }
 
 .mt-reading[hidden] {
@@ -186,24 +219,37 @@ html.mt-embedded {
 
 .mt-reading__question {
   text-align: center;
-  font-size: clamp(22px, 3vw, 28px);
-  margin-bottom: 4px;
+  font-size: clamp(24px, 3vw, 32px);
+  margin-bottom: 8px;
+  border-radius: 6px;
+}
+
+/* Focus moves here after a pull. Mouse users see nothing; keyboard users get the sand ring. */
+.mt-reading__question:focus {
+  outline: none;
+}
+
+.mt-reading__question:focus-visible {
+  outline: 3px solid var(--mt-sand);
+  outline-offset: 6px;
 }
 
 .mt-reading__hint {
   text-align: center;
   color: var(--mt-ink-soft);
-  font-size: 14px;
+  font-size: 15px;
   margin-bottom: 6px;
 }
 
-/* Shown while any card is still face down. */
+/* Shown while any card is still face down, in the site's handwritten accent style. */
 .mt-reading__flip-hint {
   text-align: center;
-  color: var(--mt-accent);
-  font-size: 14px;
-  font-weight: 600;
-  margin-bottom: 6px;
+  font-family: var(--mt-script);
+  font-weight: 500;
+  font-size: 24px;
+  line-height: 1.2;
+  color: var(--mt-sand);
+  margin-bottom: 4px;
 }
 
 .mt-widget [hidden] {
@@ -212,7 +258,7 @@ html.mt-embedded {
 
 .mt-cards {
   list-style: none;
-  margin: 14px 0 0;
+  margin: 18px 0 0;
   padding: 0;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -220,10 +266,10 @@ html.mt-embedded {
 }
 
 .mt-card {
-  background: var(--mt-surface);
+  background: var(--mt-panel);
   border: 1px solid var(--mt-line);
   border-radius: var(--mt-radius);
-  padding: 16px;
+  padding: 18px 16px 20px;
   display: grid;
   grid-template-areas:
     "position"
@@ -236,25 +282,29 @@ html.mt-embedded {
   min-width: 0;
 }
 
+/* "1  WHERE YOU ARE": an italic serif number, then the position in small spaced caps. */
 .mt-card__position {
   grid-area: position;
-  font-size: 13px;
-  letter-spacing: 0.02em;
-  color: var(--mt-accent);
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  line-height: 1.35;
+  color: var(--mt-sand);
 }
 
 .mt-card__position-num {
   display: inline-block;
-  min-width: 22px;
-  height: 22px;
-  line-height: 22px;
-  text-align: center;
-  border-radius: 50%;
-  background: var(--mt-accent);
-  color: var(--mt-accent-ink);
-  font-size: 12px;
-  margin-right: 6px;
+  font-family: var(--mt-serif);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 22px;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: none;
+  vertical-align: -3px;
+  margin-right: 8px;
+  color: var(--mt-sand);
 }
 
 .mt-card__figure {
@@ -294,21 +344,35 @@ html.mt-embedded {
   right: 0;
   bottom: 0;
   left: 0;
-  border-radius: 10px;
+  border-radius: 12px;
   overflow: hidden;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
-  box-shadow: 0 6px 18px rgba(43, 34, 51, 0.18);
+  box-shadow: 0 14px 30px rgba(20, 40, 44, 0.28);
 }
 
+/* Card back: deep teal, gold edge, the site's crescent moon, and a thin inner frame. */
 .mt-card__face--back {
   transform: rotateY(180deg);
-  background:
-    radial-gradient(circle at 50% 50%, rgba(201, 162, 77, 0.9) 0 4px, transparent 5px),
-    radial-gradient(circle at 50% 50%, transparent 0 22px, rgba(201, 162, 77, 0.55) 23px 24px, transparent 25px),
-    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.05) 0 6px, transparent 6px 12px),
-    linear-gradient(160deg, var(--mt-back-a), var(--mt-back-b));
-  border: 4px solid rgba(201, 162, 77, 0.8);
+  background: var(--mt-bg-deep) url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='30' fill='none' stroke='%23C9A27E' stroke-width='1.5'/%3E%3Cpath d='M58 32 A20 20 0 1 0 58 68 A16 16 0 1 1 58 32 Z' fill='%23C9A27E'/%3E%3C/svg%3E") no-repeat center 42% / 48% auto;
+  border: 2px solid var(--mt-gold);
+}
+
+.mt-card__face--back::before {
+  content: "";
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  bottom: 8px;
+  left: 8px;
+  border: 1px solid rgba(201, 162, 126, 0.6);
+  border-radius: 8px;
+  pointer-events: none;
+}
+
+.mt-card__face--front {
+  background: var(--mt-field);
+  border: 2px solid var(--mt-clay-light);
 }
 
 .mt-card__face--front img {
@@ -316,7 +380,7 @@ html.mt-embedded {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  background: #fff;
+  background: var(--mt-field);
 }
 
 /* Placeholder used when a card image is missing or still loading. */
@@ -325,14 +389,12 @@ html.mt-embedded {
   width: 100%;
   height: 100%;
   padding: 12px;
-  background: linear-gradient(170deg, #fff8ea, #f2e7d2);
-  color: var(--mt-ink);
+  background: var(--mt-field);
+  color: var(--mt-field-ink);
   font-family: var(--mt-serif);
   text-align: center;
   align-items: center;
   justify-content: center;
-  border: 3px double var(--mt-gold);
-  border-radius: 10px;
 }
 
 .mt-card__face--front.is-missing img {
@@ -345,7 +407,7 @@ html.mt-embedded {
 
 .mt-card__name {
   grid-area: name;
-  font-size: 20px;
+  font-size: 21px;
 }
 
 .mt-card__name h3 {
@@ -368,7 +430,7 @@ html.mt-embedded {
   font-size: 15px;
 }
 
-/* A face-down card is compact: label, card back, "Turn over". The text joins the layout
+/* A face-down card is compact: label, card back, "tap to flip". The text joins the layout
    when the card is turned, fading in once the flip is half-way round. */
 @keyframes mt-fade-in {
   from { opacity: 0; }
@@ -383,8 +445,9 @@ html.mt-embedded {
   display: none;
 }
 
-/* "Turn over" button: an invisible button covering the whole face-down picture, with a
-   small pill label along the bottom edge. Removed once the card is turned. */
+/* "tap to flip" button: an invisible button covering the whole face-down picture, with
+   the handwritten label along the bottom edge, as on the site's own card illustration.
+   Removed once the card is turned. */
 .mt-card__turn {
   position: absolute;
   top: 0;
@@ -395,9 +458,9 @@ html.mt-embedded {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  padding: 12px;
+  padding: 16px 12px 18px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 12px;
   background: transparent;
   cursor: pointer;
   font: inherit;
@@ -405,33 +468,29 @@ html.mt-embedded {
 
 .mt-card__turn span {
   display: inline-block;
-  padding: 7px 14px;
-  border-radius: 999px;
-  background: rgba(43, 34, 51, 0.82);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-family: var(--mt-script);
+  font-weight: 500;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--mt-sand);
   white-space: nowrap;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
-  transition: background 0.2s ease, color 0.2s ease, opacity 0.3s ease;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  transition: color 0.2s ease, opacity 0.3s ease;
 }
 
 /* Two rules rather than one list: an old browser that doesn't know :focus-visible would
    otherwise throw the hover style away with it. */
 .mt-card__turn:hover span {
-  background: var(--mt-gold);
-  color: var(--mt-ink);
+  color: #fff;
 }
 
 .mt-card__turn:focus-visible span {
-  background: var(--mt-gold);
-  color: var(--mt-ink);
+  color: #fff;
 }
 
 .mt-card__turn:focus-visible {
-  outline: 3px solid var(--mt-gold);
-  outline-offset: 3px;
+  outline: 3px solid var(--mt-sand);
+  outline-offset: 4px;
 }
 
 .mt-card__turn:disabled {
@@ -448,7 +507,7 @@ html.mt-embedded {
 
 /* A face-down card lifts slightly under the pointer. */
 .mt-card.is-facedown .mt-card__figure:hover .mt-card__flip {
-  transform: rotateY(180deg) translateY(-4px);
+  transform: rotateY(180deg) translateY(-6px);
 }
 
 /* Focus lands on the name after a turn; the card appearing is the feedback, no ring needed. */
@@ -474,18 +533,19 @@ html.mt-embedded {
 .mt-reading.is-shuffling .mt-card:nth-child(4) .mt-card__figure { animation-delay: 0.24s; }
 
 .mt-reading__footer {
-  margin-top: 22px;
+  margin-top: 24px;
   text-align: center;
   color: var(--mt-ink-soft);
   font-size: 15px;
-  padding: 14px;
+  line-height: 1.6;
+  padding: 18px 8px 0;
   border-top: 1px solid var(--mt-line);
 }
 
 /* ---------- Reading actions + PDF ---------- */
 
 .mt-reading__actions {
-  margin-top: 16px;
+  margin-top: 18px;
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
@@ -501,7 +561,7 @@ html.mt-embedded {
 }
 
 .mt-reading__pdf-status.is-error {
-  color: #b23a3a;
+  color: var(--mt-error);
 }
 
 /* ---------- Responsive ---------- */
@@ -514,11 +574,12 @@ html.mt-embedded {
 
 @media (max-width: 600px) {
   .mt-widget {
-    padding: 16px 16px 32px;
+    padding: 4px 12px 28px;
   }
 
   .mt-controls {
     grid-template-columns: 1fr;
+    padding: 16px;
   }
 
   .mt-controls .mt-button {
@@ -562,15 +623,19 @@ html.mt-embedded {
 
   .mt-card.is-facedown .mt-card__figure {
     justify-self: center;
+    max-width: 150px;
+  }
+
+  .mt-card__face--back {
+    background-size: 44% auto;
   }
 
   .mt-card__turn {
-    padding: 8px;
+    padding: 10px 8px 12px;
   }
 
   .mt-card__turn span {
-    font-size: 12px;
-    padding: 5px 10px;
+    font-size: 18px;
   }
 
   .mt-card__name {
@@ -594,6 +659,10 @@ html.mt-embedded {
     transition: none;
   }
 
+  .mt-button:hover {
+    transform: none;
+  }
+
   .mt-card__text {
     animation: none;
   }
@@ -610,6 +679,18 @@ html.mt-embedded {
 /* ---------- Print (Ctrl+P / Save as PDF) ---------- */
 
 @media print {
+  /* Dark ink on white paper: every colour above is a variable, so swapping them is enough. */
+  :root {
+    --mt-bg: #fff;
+    --mt-bg-deep: #fff;
+    --mt-panel: transparent;
+    --mt-line: #cfcac0;
+    --mt-ink: #264349;
+    --mt-ink-soft: #3b5a60;
+    --mt-sand: #8a5a38;
+    --mt-field: #fff;
+  }
+
   html, body {
     background: #fff;
   }
@@ -637,7 +718,6 @@ html.mt-embedded {
   .mt-card {
     break-inside: avoid;
     page-break-inside: avoid;
-    border-color: #ccc;
   }
 
   .mt-card__flip {

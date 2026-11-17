@@ -1,8 +1,15 @@
 <!--
   Marketing Tarot: iframe embed for Squarespace.
   1. The site/ folder is published by GitHub Pages at https://madfable.github.io/marketing-tarot/
-  2. In Squarespace, add a Code Block (HTML) to the page and paste this whole snippet.
+  2. The Marketing Tarot landing page on merlinitemarketing.com is one big Code Block of
+     Kelly's. Edit that block, find the placeholder near the bottom of the teal "reading"
+     section (a div with class "slot", containing the note "MIKE: put the tarot generator
+     embed here" and the text "[Mike's tarot generator goes here]"), and replace that whole
+     div, from its opening tag to its closing tag, with everything below this comment.
+     On any other page, paste it into a Code Block (HTML) of its own.
   3. The src below already points at the GitHub Pages site for this repo.
+  The widget's colours match the teal arch it sits in, so the frame itself is invisible, and
+  it leaves out its own title because the page already has the heading above it.
   The widget tells the page how tall it is, so the iframe grows and shrinks with the reading,
   and it mirrors the reading into this page's URL (#q=…&c=…) so a copied link brings it back.
   If this script doesn't run (Squarespace 7.0 "Ajax loading", or only the iframe was pasted),
@@ -12,7 +19,7 @@
   id="marketing-tarot-frame"
   src="https://madfable.github.io/marketing-tarot/"
   title="Marketing Tarot"
-  style="display:block;width:100%;border:0;min-height:330px;"
+  style="display:block;width:100%;border:0;min-height:160px;"
 ></iframe>
 <script>
   (function () {

@@ -14,7 +14,8 @@
 
   var PAGE_W = 612, PAGE_H = 792, MARGIN = 54;           // US Letter, 3/4 inch margins
   var CONTENT_W = PAGE_W - MARGIN * 2;
-  var INK = "0.17 0.13 0.2", SOFT = "0.36 0.32 0.4", ACCENT = "0.42 0.31 0.56", LINE = "0.89 0.85 0.78";
+  // Site colours on white paper: teal ink, muted teal, clay accent, sand rules.
+  var INK = "0.15 0.26 0.29", SOFT = "0.23 0.35 0.38", ACCENT = "0.58 0.38 0.24", LINE = "0.9 0.81 0.71";
 
   /* ---------- text encoding ---------- */
 

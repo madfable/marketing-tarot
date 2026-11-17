@@ -164,6 +164,7 @@
     assert(w.reading().hidden, "reading hidden before a pull");
     eq(w.q(".mt-email"), null, "no email box anywhere");
     eq(w.pullBtn().textContent, "Shuffle & pull 4 cards", "initial button label");
+    assert(w.q(".mt-header h1"), "title shown when the page stands on its own");
   });
 
   await test("a pull renders 4 distinct cards for the chosen question, with exact copy", async () => {
@@ -610,6 +611,7 @@
       await waitFor(() => !widget().querySelector(".mt-controls__pull").disabled, 3000, "restore");
       eq(ids(), "1,2,3,4", "seeded reading shown");
       eq(widget().querySelector("#mt-question").value, "2", "seeded question");
+      eq(widget().querySelector(".mt-header"), null, "no second title inside the frame: the host page has its own heading");
       await waitFor(() => parseInt(inner().style.height, 10) > 800, 3000, "frame sized to the reading");
       const tall = parseInt(inner().style.height, 10);
       await waitFor(() => widget().documentElement.classList.contains("mt-embedded"), 3000, "widget acknowledged by the snippet");

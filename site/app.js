@@ -19,7 +19,7 @@
     shufflingButton: "Shuffling…",
     readingHint: "Each spot asks its own question. The card that landed there is the answer.",
     flipHint: "Your cards are face down. Tap or click each one to turn it over.",
-    flipButton: "Turn over",
+    flipButton: "tap to flip",
     flipLabel: "Turn over card {n}: {position}",
     dealtAnnouncement: "Four cards are face down for “{question}”. Turn each one over to read it.",
     flippedAnnouncement: "Card {n}, {position}: {name}.",
@@ -30,7 +30,10 @@
     pdfFilename: "marketing-tarot-reading.pdf",
     shuffleMs: 900,
     scrollOnPull: true,
-    updateHash: true
+    updateHash: true,
+    // The landing page has its own heading right above the widget, so an embedded copy
+    // skips the title. "auto" shows it only when the page is not inside an iframe.
+    showHeader: "auto"
   };
 
   var config = assign({}, DEFAULTS, window.MARKETING_TAROT_CONFIG || {});
@@ -164,12 +167,17 @@
       return '<option value="' + i + '">' + esc(s.question) + "</option>";
     }).join("");
 
-    root.innerHTML =
-      '<div class="mt-widget">' +
-        '<header class="mt-header">' +
+    var showHeader = config.showHeader === "auto" ? window.parent === window : !!config.showHeader;
+    var header = showHeader
+      ? '<header class="mt-header">' +
           "<h1>" + esc(config.title) + "</h1>" +
           '<p class="mt-header__sub">' + esc(config.subtitle) + "</p>" +
-        "</header>" +
+        "</header>"
+      : "";
+
+    root.innerHTML =
+      '<div class="mt-widget">' +
+        header +
         '<form class="mt-controls">' +
           '<div class="mt-controls__field">' +
             '<label for="mt-question">' + esc(config.questionLabel) + "</label>" +
