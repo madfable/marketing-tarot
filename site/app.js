@@ -202,13 +202,13 @@
   }
 
   // Footer copy comes from deck.json. The last sentence becomes the Services link.
-  // target="_top" so it leaves the iframe when embedded.
+  // Opens in a new tab (and so outside the iframe when embedded), leaving the reading in place.
   function footerHtml() {
     var text = deck.footer || "";
     var m = text.match(/^(.*?)([^.!?]*[.!?]?)$/);
     if (!m || !m[2].trim()) return esc(text);
     var lead = m[2].match(/^\s*/)[0];
-    return esc(m[1] + lead) + '<a href="' + esc(config.servicesUrl) + '" target="_top">' + esc(m[2].trim()) + "</a>";
+    return esc(m[1] + lead) + '<a href="' + esc(config.servicesUrl) + '" target="_blank" rel="noopener">' + esc(m[2].trim()) + "</a>";
   }
 
   // A face-down card hides its picture and text from assistive tech until it is turned

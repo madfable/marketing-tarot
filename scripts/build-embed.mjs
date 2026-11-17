@@ -15,7 +15,7 @@ const arg = (name) => { const a = process.argv.find((x) => x.startsWith(`--${nam
 const siteUrl = (arg("site") || process.env.SITE_URL || "https://madfable.github.io/marketing-tarot").replace(/\/+$/, "");
 
 const config = {
-  servicesUrl: "https://merlinitemarketing.com/services",
+  servicesUrl: "https://merlinitemarketing.com/marketing-services",
   cardsBaseUrl: siteUrl + "/cards/",
   imageExt: ".jpg"
 };

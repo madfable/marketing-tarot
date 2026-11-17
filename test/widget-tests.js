@@ -315,14 +315,15 @@
     w.cards().forEach((c, i) => eq(c.querySelector(".mt-card__name").getAttribute("aria-hidden"), null, `restored card ${i} text exposed`));
   });
 
-  await test("footer keeps Kelly's copy exactly and links the last sentence to Services, leaving the iframe", async () => {
+  await test("footer keeps Kelly's copy exactly and links the last sentence to Services in a new tab", async () => {
     const w = boot({ servicesUrl: "https://example.test/services" });
     await w.pull();
     const footer = w.q(".mt-reading__footer");
     eq(footer.textContent, deck.footer, "footer text identical to deck.json (including spacing)");
     const a = footer.querySelector("a");
     eq(a.getAttribute("href"), "https://example.test/services", "services link");
-    eq(a.getAttribute("target"), "_top", "services link escapes the iframe");
+    eq(a.getAttribute("target"), "_blank", "services link opens a new tab (so it also leaves the iframe)");
+    eq(a.getAttribute("rel"), "noopener", "new tab can't reach back into the page");
     eq(a.textContent, "If you want help turning your reading into a plan, that's what I do!", "linked sentence");
   });
 

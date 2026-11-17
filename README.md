@@ -153,7 +153,8 @@ at the top of `site/pdf.js` (teal ink, clay accent).
 - The reading is stored in the URL hash so a refresh, or a shared link, shows the same
   cards. A restored reading comes back face up, since it has already been seen.
 - The footer under every reading comes from `deck.json`, with the last sentence linked
-  to the Services page (opening outside the iframe).
+  to Kelly's services page (https://merlinitemarketing.com/marketing-services, set in
+  `site/index.html`), opening in a new tab so the reading stays put.
 
 ## Download as PDF
 
@@ -217,4 +218,3 @@ the top of `site/app.js` and can be overridden from `MARKETING_TAROT_CONFIG` in
 - Reversed cards: not written yet. If she wants them, the JSON needs a second meaning per
   card and `reversals` flipped to `true`; the widget would then draw an orientation per
   card and rotate the image.
-- Confirm the Services URL in `site/index.html`.
