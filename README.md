@@ -82,6 +82,12 @@ reading into the page URL (`#q=2&c=5,17,40,61`) in both directions, so a copied 
 refreshed page brings the same four cards back. Styling stays isolated from the
 Squarespace theme.
 
+The snippet answers the widget's first height message with an "ack"; only then does the
+widget hide the frame's own scrollbar. If the script never runs (Squarespace 7.0 sites
+with "Ajax loading" on only run Code Block scripts on a full page load; 7.1 sites are
+fine) the frame stays at its 330px starting height but keeps a scrollbar, so the reading
+is still reachable. On a 7.0 site, turn Ajax loading off under Design > Site Styles.
+
 **Option B, inline.** Build the snippet and paste `dist/squarespace-code-block.html`
 into a Code Block:
 

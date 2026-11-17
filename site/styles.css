@@ -24,6 +24,12 @@ html, body {
   padding: 0;
   background: var(--mt-bg);
 }
+
+/* Set by app.js once the host page's embed script has acknowledged a height message:
+   the iframe is being resized to fit, so the frame document needs no scrollbar. */
+html.mt-embedded {
+  overflow: hidden;
+}
 /* /standalone-only */
 
 .mt-widget,
@@ -273,9 +279,21 @@ html, body {
   transform: rotateY(180deg);
 }
 
+/* Browsers without aspect-ratio support (Safari before 15, 2020-era Android) get the
+   classic padding trick instead, so the card still has a size and can be tapped. */
+@supports not (aspect-ratio: 11 / 19) {
+  .mt-card__flip {
+    height: 0;
+    padding-bottom: 172.73%; /* 19 / 11 */
+  }
+}
+
 .mt-card__face {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   border-radius: 10px;
   overflow: hidden;
   backface-visibility: hidden;
@@ -369,7 +387,10 @@ html, body {
    small pill label along the bottom edge. Removed once the card is turned. */
 .mt-card__turn {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   z-index: 1;
   display: flex;
   align-items: flex-end;
@@ -396,7 +417,13 @@ html, body {
   transition: background 0.2s ease, color 0.2s ease, opacity 0.3s ease;
 }
 
-.mt-card__turn:hover span,
+/* Two rules rather than one list: an old browser that doesn't know :focus-visible would
+   otherwise throw the hover style away with it. */
+.mt-card__turn:hover span {
+  background: var(--mt-gold);
+  color: var(--mt-ink);
+}
+
 .mt-card__turn:focus-visible span {
   background: var(--mt-gold);
   color: var(--mt-ink);
@@ -521,6 +548,20 @@ html, body {
   .mt-card__figure {
     justify-self: start;
     max-width: 104px;
+  }
+
+  /* While face down there is no text yet, so drop the empty right-hand column and sit
+     the card back in the middle; it moves to the left as it turns and the text appears. */
+  .mt-card.is-facedown {
+    grid-template-areas:
+      "position"
+      "image";
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+  }
+
+  .mt-card.is-facedown .mt-card__figure {
+    justify-self: center;
   }
 
   .mt-card__turn {

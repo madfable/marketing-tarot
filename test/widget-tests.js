@@ -5,7 +5,12 @@
 
    Note: Chrome throttles history.replaceState to roughly 100 calls per 10 seconds and then
    silently drops calls, so instances run with updateHash:false unless a test is about the
-   hash, and tests read the drawn cards from data-card-id instead of the URL. */
+   hash, and tests read the drawn cards from data-card-id instead of the URL.
+
+   Run the suite in a visible, foreground tab. In a hidden or occluded tab Chrome throttles
+   timers, and the time-based waits here ("pull to finish", the image retry) then fail
+   even though the widget is fine. The "pull is ignored while a reveal is in progress"
+   test also assumes the OS does not have "reduce motion" switched on. */
 (async function () {
   "use strict";
 
@@ -97,6 +102,29 @@
   // Decodes PDF bytes as latin1 so literal strings and dictionary keys can be searched.
   const latin1 = (bytes) => { let s = ""; for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]); return s; };
   const count = (s, needle) => s.split(needle).length - 1;
+
+  // Real Helvetica / Helvetica-Bold glyph widths (per 1000 em) by WinAnsi byte, exported
+  // from pypdf's copy of Adobe's core-font AFM metrics. This is the ruler a PDF viewer
+  // actually uses, independent of the canvas measurement pdf.js wraps with.
+  const HELVETICA = {"Helvetica":{"32":278,"33":278,"34":355,"35":556,"36":556,"37":889,"38":667,"39":191,"40":333,"41":333,"42":389,"43":584,"44":278,"45":333,"46":278,"47":278,"48":556,"49":556,"50":556,"51":556,"52":556,"53":556,"54":556,"55":556,"56":556,"57":556,"58":278,"59":278,"60":584,"61":584,"62":584,"63":556,"64":1015,"65":667,"66":667,"67":722,"68":722,"69":667,"70":611,"71":778,"72":722,"73":278,"74":500,"75":667,"76":556,"77":833,"78":722,"79":778,"80":667,"81":778,"82":722,"83":667,"84":611,"85":722,"86":667,"87":944,"88":667,"89":667,"90":611,"91":278,"92":278,"93":278,"94":469,"95":556,"96":333,"97":556,"98":556,"99":500,"100":556,"101":556,"102":278,"103":556,"104":556,"105":222,"106":222,"107":500,"108":222,"109":833,"110":556,"111":556,"112":556,"113":556,"114":333,"115":500,"116":278,"117":556,"118":500,"119":722,"120":500,"121":500,"122":500,"123":334,"124":260,"125":334,"126":584,"128":556,"130":222,"131":556,"132":333,"133":1000,"134":556,"135":556,"136":333,"137":1000,"138":667,"139":333,"140":1000,"142":611,"145":222,"146":222,"147":333,"148":333,"149":350,"150":556,"151":1000,"152":333,"153":1000,"154":500,"155":333,"156":944,"158":500,"159":667,"161":333,"162":556,"163":556,"164":556,"165":556,"166":260,"167":556,"168":333,"169":737,"170":370,"171":556,"172":584,"174":737,"175":333,"176":400,"177":584,"178":333,"179":333,"180":333,"181":556,"182":537,"183":278,"184":333,"185":333,"186":365,"187":556,"188":834,"189":834,"190":834,"191":611,"192":667,"193":667,"194":667,"195":667,"196":667,"197":667,"198":1000,"199":722,"200":667,"201":667,"202":667,"203":667,"204":278,"205":278,"206":278,"207":278,"208":722,"209":722,"210":778,"211":778,"212":778,"213":778,"214":778,"215":584,"216":778,"217":722,"218":722,"219":722,"220":722,"221":667,"222":667,"223":611,"224":556,"225":556,"226":556,"227":556,"228":556,"229":556,"230":889,"231":500,"232":556,"233":556,"234":556,"235":556,"236":278,"237":278,"238":278,"239":278,"240":556,"241":556,"242":556,"243":556,"244":556,"245":556,"246":556,"247":584,"248":611,"249":556,"250":556,"251":556,"252":556,"253":500,"254":556,"255":500},"Helvetica-Bold":{"32":278,"33":333,"34":474,"35":556,"36":556,"37":889,"38":722,"39":238,"40":333,"41":333,"42":389,"43":584,"44":278,"45":333,"46":278,"47":278,"48":556,"49":556,"50":556,"51":556,"52":556,"53":556,"54":556,"55":556,"56":556,"57":556,"58":333,"59":333,"60":584,"61":584,"62":584,"63":611,"64":975,"65":722,"66":722,"67":722,"68":722,"69":667,"70":611,"71":778,"72":722,"73":278,"74":556,"75":722,"76":611,"77":833,"78":722,"79":778,"80":667,"81":778,"82":722,"83":667,"84":611,"85":722,"86":667,"87":944,"88":667,"89":667,"90":611,"91":333,"92":278,"93":333,"94":584,"95":556,"96":333,"97":556,"98":611,"99":556,"100":611,"101":556,"102":333,"103":611,"104":611,"105":278,"106":278,"107":556,"108":278,"109":889,"110":611,"111":611,"112":611,"113":611,"114":389,"115":556,"116":333,"117":611,"118":556,"119":778,"120":556,"121":556,"122":500,"123":389,"124":280,"125":389,"126":584,"128":556,"130":278,"131":556,"132":500,"133":1000,"134":556,"135":556,"136":333,"137":1000,"138":667,"139":333,"140":1000,"142":611,"145":278,"146":278,"147":500,"148":500,"149":350,"150":556,"151":1000,"152":333,"153":1000,"154":556,"155":333,"156":944,"158":500,"159":667,"161":333,"162":556,"163":556,"164":556,"165":556,"166":280,"167":556,"168":333,"169":737,"170":370,"171":556,"172":584,"174":737,"175":333,"176":400,"177":584,"178":333,"179":333,"180":333,"181":611,"182":556,"183":278,"184":333,"185":333,"186":365,"187":556,"188":834,"189":834,"190":834,"191":611,"192":722,"193":722,"194":722,"195":722,"196":722,"197":722,"198":1000,"199":722,"200":667,"201":667,"202":667,"203":667,"204":278,"205":278,"206":278,"207":278,"208":722,"209":722,"210":778,"211":778,"212":778,"213":778,"214":778,"215":584,"216":778,"217":722,"218":722,"219":722,"220":722,"221":667,"222":667,"223":611,"224":556,"225":556,"226":556,"227":556,"228":556,"229":556,"230":889,"231":556,"232":556,"233":556,"234":556,"235":556,"236":278,"237":278,"238":278,"239":278,"240":611,"241":611,"242":611,"243":611,"244":611,"245":611,"246":611,"247":584,"248":611,"249":611,"250":611,"251":611,"252":611,"253":556,"254":611,"255":556}};
+  const helveticaWidth = (s, bold, size) => {
+    const table = HELVETICA[bold ? "Helvetica-Bold" : "Helvetica"];
+    let w = 0;
+    for (const ch of s) {
+      const cw = table[ch.charCodeAt(0)];
+      if (cw === undefined) throw new Error(`no Helvetica width for byte ${ch.charCodeAt(0)} in "${s.slice(0, 40)}"`);
+      w += cw;
+    }
+    return w * size / 1000;
+  };
+  // Every text operation pdf.js writes: BT <rgb> rg /F1|F2 <size> Tf <x> <y> Td (<text>) Tj ET
+  const pdfTextOps = (text) => {
+    const re = /BT [\d. ]+ rg \/(F[12]) ([\d.]+) Tf ([\d.-]+) ([\d.-]+) Td \(([\s\S]*?)(?<!\\)\) Tj ET/g;
+    const ops = [];
+    let m;
+    while ((m = re.exec(text))) ops.push({ bold: m[1] === "F2", size: +m[2], x: +m[3], y: +m[4], text: m[5].replace(/\\([()\\])/g, "$1") });
+    return ops;
+  };
 
   // Walks the xref table and checks every offset lands on "N 0 obj".
   function checkXref(bytes, text) {
@@ -359,7 +387,39 @@
     }
   });
 
-  await test("PDF: text wrapping never exceeds the column width", () => {
+  await test("PDF: every line fits inside the margins by real Helvetica metrics, including a worst-case reading", async () => {
+    const original = window.MARKETING_TAROT_DECK;
+    const longest = (arr, key) => arr.reduce((a, b) => (b[key].length > a[key].length ? b : a));
+    const worst = JSON.parse(JSON.stringify(original));
+    const lm = longest(worst.cards, "marketing_meaning"), lc = longest(worst.cards, "classic_meaning"), ln = longest(worst.cards, "name");
+    const lp = worst.spreads.flatMap((s) => s.positions).reduce((a, b) => (b.length > a.length ? b : a));
+    [0, 1, 2, 3].forEach((i) => { worst.cards[i].marketing_meaning = lm.marketing_meaning; worst.cards[i].classic_meaning = lc.classic_meaning; worst.cards[i].name = ln.name; });
+    worst.spreads[0].question = longest(worst.spreads, "question").question;
+    worst.spreads[0].positions = [lp, lp, lp, lp];
+    let checked = 0;
+    for (const [deckToUse, hash] of [[original, "q=2&c=0,22,36,77"], [worst, "q=0&c=0,1,2,3"]]) {
+      window.MARKETING_TAROT_DECK = deckToUse;
+      try {
+        const w = boot({ servicesUrl: "https://example.test/services" }, hash);
+        await waitFor(() => !w.pullBtn().disabled, 3000, "restore");
+        const text = latin1(new Uint8Array(await (await w.host.marketingTarot.buildPdf()).arrayBuffer()));
+        const ops = pdfTextOps(text);
+        assert(ops.length > 30, `found ${ops.length} text lines`);
+        eq(ops.length, count(text, " Tj ET"), "every text operation in the PDF was parsed");
+        for (const op of ops) {
+          const right = op.x + helveticaWidth(op.text, op.bold, op.size);
+          assert(right <= 612 - 54 + 0.01, `line ends at ${right.toFixed(1)}pt, past the 558pt right margin: "${op.text.slice(0, 50)}"`);
+          assert(op.y >= 54 - 0.01, `line at y=${op.y} sits below the bottom margin: "${op.text.slice(0, 50)}"`);
+          checked++;
+        }
+      } finally {
+        window.MARKETING_TAROT_DECK = original;
+      }
+    }
+    assert(checked > 60, `${checked} lines checked`);
+  });
+
+  await test("PDF: text wrapping never exceeds the column width (the widget's own ruler)", () => {
     const wrap = window.MarketingTarotPdf._wrap;
     const canvas = document.createElement("canvas").getContext("2d");
     const long = deck.cards.map((c) => c.marketing_meaning).join(" ");
@@ -464,7 +524,50 @@
     }
   });
 
-  await test("standalone page in an iframe reports its height and reading, and can shrink", async () => {
+  await test("PDF: a download still building when the visitor pulls again is dropped, never delivered late", async () => {
+    const w = boot({}, "q=1&c=10,11,12,13");
+    await waitFor(() => !w.pullBtn().disabled, 3000, "restore");
+    const realBuild = window.MarketingTarotPdf.build, realCreate = URL.createObjectURL, realClick = HTMLAnchorElement.prototype.click;
+    let clicks = 0, finishBuild = null;
+    window.MarketingTarotPdf.build = () => new Promise((resolve) => { finishBuild = resolve; });
+    URL.createObjectURL = () => "blob:fake";
+    HTMLAnchorElement.prototype.click = function () { clicks++; };
+    try {
+      w.q(".mt-reading__pdf").click();
+      eq(w.q(".mt-reading__pdf").textContent, "Preparing PDF…", "build started");
+      await w.pull();
+      eq(w.q(".mt-reading__pdf").hidden, true, "new face-down reading hides the PDF button");
+      finishBuild(new Blob(["%PDF-1.4 stale"], { type: "application/pdf" }));
+      await sleep(80);
+      eq(clicks, 0, "the stale PDF was not downloaded");
+      eq(w.q(".mt-reading__pdf").hidden, true, "button stays hidden");
+      eq(w.q(".mt-reading__pdf-status").textContent, "", "no stray status");
+      window.MarketingTarotPdf.build = realBuild;
+      w.flipAll();
+      w.q(".mt-reading__pdf").click();
+      await waitFor(() => clicks === 1, 5000, "a fresh download for the new reading");
+      eq(w.q(".mt-reading__pdf").textContent, "Download as PDF", "label restored");
+    } finally {
+      window.MarketingTarotPdf.build = realBuild;
+      URL.createObjectURL = realCreate;
+      HTMLAnchorElement.prototype.click = realClick;
+    }
+  });
+
+  await test("changing the page hash shows that reading (a shared link to the same page)", async () => {
+    const w = boot({ updateHash: true }, "q=1&c=20,21,22,23");
+    await waitFor(() => !w.pullBtn().disabled, 3000, "restore");
+    eq(w.ids().join(), "20,21,22,23", "initial reading");
+    window.location.hash = "#q=4&c=30,31,32,33";
+    await waitFor(() => w.ids().join() === "30,31,32,33", 3000, "reading follows the hash");
+    eq(w.select().value, "4", "dropdown follows");
+    eq(w.faceDown().length, 0, "shown face up");
+    window.location.hash = "#garbage";
+    await sleep(100);
+    eq(w.ids().join(), "30,31,32,33", "an invalid hash leaves the reading alone");
+  });
+
+  await test("standalone page in an iframe reports its height and reading, can shrink, and hides its scrollbar only once acked", async () => {
     const frame = document.createElement("iframe");
     frame.style.cssText = "width:900px;height:3000px;border:0";
     const messages = [];
@@ -480,9 +583,53 @@
       assert(last > 800 && last < 3000, `reported height ${last} is the widget's own height, not the 3000px frame`);
       const reading = messages.find((m) => m.type === "marketing-tarot:reading");
       assert(reading && reading.hash === "#q=0&c=1,2,3,4", "reading message carries the hash");
+      const html = frame.contentDocument.documentElement;
+      eq(html.classList.contains("mt-embedded"), false, "scrollbar kept until the host acknowledges");
+      eq(getComputedStyle(html).overflow, "visible", "frame document can scroll on its own");
+      frame.contentWindow.postMessage({ type: "marketing-tarot:ack" }, "*");
+      await waitFor(() => html.classList.contains("mt-embedded"), 2000, "ack received");
+      eq(getComputedStyle(html).overflow, "hidden", "scrollbar dropped once the host resizes the frame");
     } finally {
       window.removeEventListener("message", onMsg);
       frame.remove();
+    }
+  });
+
+  await test("Squarespace snippet: seeds from the page hash, resizes the frame, mirrors the reading, follows hash changes, ignores strangers", async () => {
+    const host = document.createElement("iframe");
+    host.style.cssText = "width:900px;height:900px;border:0";
+    host.src = "/test/embed.html#q=2&c=1,2,3,4";
+    stage.appendChild(host);
+    const inner = () => host.contentDocument && host.contentDocument.getElementById("marketing-tarot-frame");
+    const widget = () => inner() && inner().contentDocument;
+    const ids = () => Array.from(widget().querySelectorAll(".mt-card")).map((c) => Number(c.dataset.cardId)).join();
+    try {
+      await waitFor(() => { try { return !!(widget() && widget().querySelector(".mt-card")); } catch (e) { return false; } }, 8000, "embedded widget to render");
+      assert(inner().getAttribute("src").endsWith("#q=2&c=1,2,3,4"), "page hash handed to the iframe");
+      eq(inner().getAttribute("scrolling"), null, "no scrolling=no, so the frame can still scroll if the script is missing");
+      await waitFor(() => !widget().querySelector(".mt-controls__pull").disabled, 3000, "restore");
+      eq(ids(), "1,2,3,4", "seeded reading shown");
+      eq(widget().querySelector("#mt-question").value, "2", "seeded question");
+      await waitFor(() => parseInt(inner().style.height, 10) > 800, 3000, "frame sized to the reading");
+      const tall = parseInt(inner().style.height, 10);
+      await waitFor(() => widget().documentElement.classList.contains("mt-embedded"), 3000, "widget acknowledged by the snippet");
+      eq(getComputedStyle(widget().documentElement).overflow, "hidden", "frame document hides its scrollbar");
+
+      widget().querySelector(".mt-controls__pull").click();
+      await waitFor(() => !widget().querySelector(".mt-controls__pull").disabled, 3000, "pull inside the frame");
+      await waitFor(() => host.contentWindow.location.hash === "#q=2&c=" + ids(), 3000, "host page URL mirrors the new reading");
+      await waitFor(() => parseInt(inner().style.height, 10) < tall, 3000, `frame shrank below ${tall}px for the face-down reading`);
+
+      host.contentWindow.location.hash = "#q=5&c=10,11,12,13";
+      await waitFor(() => { try { return ids() === "10,11,12,13"; } catch (e) { return false; } }, 6000, "widget re-seeded from the host's new hash");
+      eq(widget().querySelector("#mt-question").value, "5", "question followed the host hash");
+
+      const before = inner().style.height;
+      host.contentWindow.postMessage({ type: "marketing-tarot:height", height: 7 }, "*");
+      await sleep(150);
+      eq(inner().style.height, before, "a height message from anything but the widget frame is ignored");
+    } finally {
+      host.remove();
     }
   });
 

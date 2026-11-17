@@ -45,7 +45,9 @@
 
   var CARDS_PER_READING = deck.cards_per_reading || 4;
   var reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  var state = { spread: 0, cards: [], busy: false, pdfBusy: false };
+  // pdfTicket changes whenever a new reading is rendered, so a PDF that was still being
+  // built for the previous reading is dropped instead of downloaded.
+  var state = { spread: 0, cards: [], busy: false, pdfBusy: false, pdfTicket: 0 };
 
   /* ---------- helpers ---------- */
 
@@ -383,6 +385,7 @@
     var btn = root.querySelector(".mt-reading__pdf");
     var status = root.querySelector(".mt-reading__pdf-status");
     if (!btn) return;
+    state.pdfTicket++;
     state.pdfBusy = false;
     btn.disabled = false;
     btn.textContent = config.pdfButton;
@@ -394,6 +397,10 @@
     if (state.pdfBusy || !state.cards.length) return;
     var btn = root.querySelector(".mt-reading__pdf");
     var status = root.querySelector(".mt-reading__pdf-status");
+    var ticket = state.pdfTicket;
+    var hashAtClick = currentHash();
+    // False once the visitor has pulled a new reading while this PDF was still building.
+    var stillCurrent = function () { return ticket === state.pdfTicket && currentHash() === hashAtClick; };
     state.pdfBusy = true;
     btn.disabled = true;
     btn.textContent = config.pdfPreparing;
@@ -401,6 +408,7 @@
     status.className = "mt-reading__pdf-status";
 
     buildPdf().then(function (blob) {
+      if (!stillCurrent()) return;
       var url = URL.createObjectURL(blob);
       var a = document.createElement("a");
       a.href = url;
@@ -411,9 +419,11 @@
       document.body.removeChild(a);
       window.setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
     }).catch(function () {
+      if (!stillCurrent()) return;
       status.textContent = config.pdfError;
       status.classList.add("is-error");
     }).then(function () {
+      if (!stillCurrent()) return;
       state.pdfBusy = false;
       btn.disabled = false;
       btn.textContent = config.pdfButton;
@@ -458,15 +468,32 @@
   }
   window.addEventListener("load", postHeight);
 
+  // The embed snippet answers the first height message with an "ack". Only then does the
+  // frame document hide its own scrollbar (html.mt-embedded in styles.css): if the
+  // snippet's script isn't running (someone pasted just the iframe, or a Squarespace 7.0
+  // Ajax page load skipped it), the frame keeps a scrollbar so the whole reading stays
+  // reachable instead of being cut off at the iframe's starting height.
+  window.addEventListener("message", function (e) {
+    if (window.parent === window || e.source !== window.parent) return;
+    if (e.data && e.data.type === "marketing-tarot:ack") document.documentElement.classList.add("mt-embedded");
+  });
+
   // Small API for tests and for anyone embedding the widget programmatically.
   root.marketingTarot = { buildPdf: buildPdf, reading: currentReading, flipAll: flipAll };
 
-  var fromHash = readHash();
-  if (fromHash) {
+  // Shows the reading named in the URL hash, face up. Runs at load and again when the
+  // hash changes (a shared link to this same page, or the host page re-seeding the iframe).
+  function restoreFromHash() {
+    var fromHash = readHash();
+    if (!fromHash) return;
+    if (fromHash.spread === state.spread && fromHash.cards.join() === state.cards.join()) return;
     state.spread = fromHash.spread;
     state.cards = fromHash.cards;
     root.querySelector("#mt-question").value = String(state.spread);
     setBusy(true);
     renderReading(false);
   }
+
+  restoreFromHash();
+  window.addEventListener("hashchange", function () { if (!state.busy) restoreFromHash(); });
 })();
